@@ -56,6 +56,22 @@ class CombinedLayoutData(
         return true
     }
 
+    fun swapKeysCycle3(
+        left1: Boolean, r1: Int, c1: Int,
+        left2: Boolean, r2: Int, c2: Int,
+        left3: Boolean, r3: Int, c3: Int
+    ): Boolean {
+        val grid1 = if (left1) leftChars else rightChars
+        val grid2 = if (left2) leftChars else rightChars
+        val grid3 = if (left3) leftChars else rightChars
+
+        val temp = grid1[r1][c1]
+        grid1[r1][c1] = grid2[r2][c2]
+        grid2[r2][c2] = grid3[r3][c3]
+        grid3[r3][c3] = temp
+        return true
+    }
+
     // 1. Oszlopcsere (üres cellákkal együtt, Thumb key-ek kihagyásával)
     fun swapColumns(left1: Boolean, col1: Int, left2: Boolean, col2: Int): Boolean {
         val grid1 = if (left1) leftChars else rightChars
