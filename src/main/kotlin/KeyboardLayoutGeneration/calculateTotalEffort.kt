@@ -120,16 +120,29 @@ fun calculateTotalEffort(result: LayoutAnalysisResult): Double {
  * és a hőmérséklet függvényében súlyozza a mutációs műveleteket.
  * Bemenetként kap egy kezdeti layoutot, és visszaadja a megtalált legjobb (legkisebb effortú) változatot.
  */
+/**
+ * Simulated Annealing alapú optimalizáló függvény.
+ */
 fun improveLayout(
     initialLayout: CombinedLayoutData,
     corpusData: CorpusData,
     iterations: Int = 10000,
     initialTemp: Double = 10.0,
-    coolingRate: Double? = null, // Ha null, automatikusan kiszámolja az iterations alapján
-    finalTemp: Double = 0.005
+    coolingRate: Double? = null,
+    finalTemp: Double = 0.005,
+    applyHotShuffle: Boolean = true // <-- ÚJ PARAMÉTER
 ): CombinedLayoutData {
     // Dolgozzunk egy másolaton, hogy az eredeti objektum érintetlen maradjon, ha kell
     var currentLayout = initialLayout.deepCopy("${initialLayout.name}_current")
+    val mainRows = currentLayout.numRows - 1
+
+    // --- KEZDETI FORRÓ KEVERÉS (HOT SHUFFLE) FELTÉTELHEZ KÖTVE ---
+    if (applyHotShuffle) {
+        for (i in 1..50) {
+            mutateSwapRandomKeys(currentLayout, leftThumbEnabled = false, rightThumbEnabled = false, mainRows = mainRows)
+        }
+    }
+
     var currentAnalysis = completeLayoutAnalysis(currentLayout, corpusData, verbose = false)
     var currentEnergy = currentAnalysis.totalEffort
 
@@ -138,10 +151,11 @@ fun improveLayout(
 
     var temp = initialTemp
     val effectiveCoolingRate = coolingRate ?: (finalTemp / initialTemp).pow(1.0 / iterations)
-    val mainRows = currentLayout.numRows - 1 // A fő mátrix sorai (a thumb sort figyelmen kívül hagyva)
+    var stepsSinceLastBest = 0
 
+    val shuffleText = if (applyHotShuffle) "keverés után" else "eredeti állapotból"
     println("=== Optimalizálás indítása: ${initialLayout.name} ===")
-    println("Kezdeti Total Effort: ${String.format("%.4f", currentEnergy)} | CoolingRate: ${String.format("%.6f", effectiveCoolingRate)}")
+    println("Kezdeti Total Effort ($shuffleText): ${String.format("%.4f", currentEnergy)} | CoolingRate: ${String.format("%.6f", effectiveCoolingRate)}")
 
     for (step in 1..iterations) {
         // 1. Készítünk egy munkamásolatot és végrehajtunk rajta egy hőmérséklet-függő mutációt
@@ -173,16 +187,28 @@ fun improveLayout(
             currentLayout = candidateLayout
             currentEnergy = candidateEnergy
 
-            // Ha ez az eddigi globálisan legjobb állapot, elmentjük
             if (currentEnergy < bestEnergy) {
                 bestLayout = currentLayout.deepCopy("${initialLayout.name}_optimized")
                 bestEnergy = currentEnergy
+                stepsSinceLastBest = 0
                 println("[Lépés: $step | T: ${String.format("%.4f", temp)}] Új legjobb Effort: ${String.format("%.4f", bestEnergy)}")
+            } else {
+                stepsSinceLastBest++
             }
+        } else {
+            stepsSinceLastBest++
         }
 
-        // 5. Hűtés
-        temp *= effectiveCoolingRate
+        // ÚJRAMELEGÍTÉS (REHEATING)
+        if (stepsSinceLastBest > 4000 && step < iterations * 0.70) {
+            currentLayout = bestLayout.deepCopy("${initialLayout.name}_current")
+            currentEnergy = bestEnergy
+            temp = 1.5
+            stepsSinceLastBest = 0
+            println("[Lépés: $step] ÚJRAMELEGÍTÉS! Visszatérés a legjobbhoz, a hőmérséklet ismét T = 1.5")
+        } else {
+            temp *= effectiveCoolingRate
+        }
     }
 
     println("=== Optimalizálás befejezve ===")

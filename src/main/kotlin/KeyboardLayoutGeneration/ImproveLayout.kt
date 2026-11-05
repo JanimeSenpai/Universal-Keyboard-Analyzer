@@ -30,19 +30,32 @@ fun parallelImprovement(runs: Int = 25, keyboardname: String = "ltsnergorowstagg
 
     val corpusData = CorpusData.loadFromDataset("huszonkettoHuszonnegyeswikipediahuszonegy.txt")
 
+    // Kiszámoljuk, hány szál induljon az eredeti layoutból (N/10, de minimum 1)
+    val numOriginalRuns = maxOf(1, runs / 10)
+
     println("=== SA OPTIMALIZÁLÁS INDÍTÁSA ($runs FUTÁS PÁRHUZAMOSAN) ===")
+    println("-> $numOriginalRuns futás az eredeti layoutot javítja, ${runs - numOriginalRuns} futás forró keveréssel indul.")
     val startTime = System.currentTimeMillis()
 
     // Párhuzamos indítás a CPU szálain (Dispatchers.Default optimalizálja a magok használatát)
     val deferredResults = (1..runs).map { i ->
         async(Dispatchers.Default) {
+            // Az első numOriginalRuns számú szál NEM kér keverést
+            val useHotShuffle = i > numOriginalRuns
             // A deepCopy() miatt minden szál a saját layout példányával dolgozik
-            val bestLayoutInRun = improveLayout(initialLayout, corpusData, iterations = 20000)
 
-            // Csendes kiértékelés a végeredményhez (fájlba írás nélkül)
+            val bestLayoutInRun = improveLayout(
+                initialLayout = initialLayout,
+                corpusData = corpusData,
+                iterations = 20000,
+                applyHotShuffle = useHotShuffle
+            )
+
+            // Csendes kiértékelés a végeredményhez
             val finalAnalysis = completeLayoutAnalysis(bestLayoutInRun, corpusData, verbose = false)
 
-            println("--- $i. szál végzett. Effort: ${String.format("%.4f", finalAnalysis.totalEffort)} ---")
+            val modeStr = if (useHotShuffle) "Kevert" else "Eredeti"
+            println("--- $i. szál végzett ($modeStr). Effort: ${String.format("%.4f", finalAnalysis.totalEffort)} ---")
 
             // Visszaadjuk a kiszámolt párost
             Pair(finalAnalysis.totalEffort, bestLayoutInRun)
