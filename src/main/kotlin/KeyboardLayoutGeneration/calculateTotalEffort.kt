@@ -124,7 +124,7 @@ fun calculateTotalEffort(result: LayoutAnalysisResult): Double {
 fun improveLayout(
     initialLayout: CombinedLayoutData,
     corpusData: CorpusData,
-    iterations: Int = 20000,
+    iterations: Int = 42000,
     initialTemp: Double = 10.0,
     finalTemp: Double = 0.005,
     applyHotShuffle: Boolean = true
@@ -433,4 +433,70 @@ private fun mutateSwapThreeKeysCycle(
         layout.swapKeysCycle3(left1, r1, c1, left2, r2, c2, left3, r3, c3)
         break
     }
+}
+
+/**
+ * Determinisztikus 2-opt végső csiszolás (Steepest Descent).
+ * Garantálja, hogy a visszaadott layout szigorú 2-opt lokális minimumban van
+ * (nincs két olyan pozíció a táblán, amelyek felcserélése javítana az efforton).
+ */
+fun polishLayout2Opt(
+    initialLayout: CombinedLayoutData,
+    corpusData: CorpusData
+): CombinedLayoutData {
+    val currentLayout = initialLayout.deepCopy("${initialLayout.name}_polished")
+    var currentEnergy = completeLayoutAnalysis(currentLayout, corpusData, verbose = false).totalEffort
+    val mainRows = currentLayout.numRows - 1
+
+    // Összegyűjtjük az összes fő mátrixbeli koordinátát: (isLeft, row, col)
+    val positions = mutableListOf<Triple<Boolean, Int, Int>>()
+    for (r in 0 until mainRows) {
+        for (c in currentLayout.leftChars[r].indices) positions.add(Triple(true, r, c))
+        for (c in currentLayout.rightChars[r].indices) positions.add(Triple(false, r, c))
+    }
+
+    var pass = 0
+    while (true) {
+        pass++
+        var bestDelta = 0.0
+        var bestSwap: Pair<Triple<Boolean, Int, Int>, Triple<Boolean, Int, Int>>? = null
+
+        // Végigpróbáljuk az összes (i, j) párost
+        for (i in 0 until positions.size) {
+            val p1 = positions[i]
+            val ch1 = if (p1.first) currentLayout.leftChars[p1.second][p1.third] else currentLayout.rightChars[p1.second][p1.third]
+
+            for (j in i + 1 until positions.size) {
+                val p2 = positions[j]
+                val ch2 = if (p2.first) currentLayout.leftChars[p2.second][p2.third] else currentLayout.rightChars[p2.second][p2.third]
+
+                if (ch1 == ch2) continue // Két '_' cseréjét átugorjuk
+
+                // Csere kipróbálása helyben (deepCopy nélkül!)
+                currentLayout.swapKeys(p1.first, p1.second, p1.third, p2.first, p2.second, p2.third)
+                val newEnergy = completeLayoutAnalysis(currentLayout, corpusData, verbose = false).totalEffort
+                val delta = newEnergy - currentEnergy
+
+                if (delta < bestDelta - 1e-9) {
+                    bestDelta = delta
+                    bestSwap = Pair(p1, p2)
+                }
+
+                // Visszaállítjuk az eredeti állapotot
+                currentLayout.swapKeys(p1.first, p1.second, p1.third, p2.first, p2.second, p2.third)
+            }
+        }
+
+        // Ha találtunk javító cserét a teljes körben, véglegesítjük a legjobbat és új kört indítunk
+        if (bestSwap != null) {
+            val (p1, p2) = bestSwap
+            currentLayout.swapKeys(p1.first, p1.second, p1.third, p2.first, p2.second, p2.third)
+            currentEnergy += bestDelta
+            println("[2-opt Polish | $pass. kör] Javulás: ${String.format("%.4f", bestDelta)} -> Új Effort: ${String.format("%.4f", currentEnergy)}")
+        } else {
+            break // Nincs több javító 2-es csere a teljes táblán
+        }
+    }
+
+    return currentLayout
 }

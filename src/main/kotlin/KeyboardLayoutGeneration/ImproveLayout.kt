@@ -15,11 +15,22 @@ import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 
 fun main(){
-    parallelImprovement(75)
+    parallelImprovement(416)
+}
+
+
+/**
+ * Egyedi ujjlenyomat (string) generálása a karaktertömbökből,
+ * hogy ki tudjuk szűrni a pontosan megegyező generált billentyűzeteket.
+ */
+private fun layoutSignature(layout: CombinedLayoutData): String {
+    val leftStr = layout.leftChars.joinToString("|") { it.concatToString() }
+    val rightStr = layout.rightChars.joinToString("|") { it.concatToString() }
+    return "$leftStr||$rightStr"
 }
 
 // A runBlocking összeköti a hagyományos szinkron kódot a korutinok világával
-fun parallelImprovement(runs: Int = 25, keyboardname: String = "ltsnergorowstagger") = runBlocking {
+fun parallelImprovement(runs: Int = 25, keyboardname: String = "ltsnergomini") = runBlocking {
     val originalYamlFile = File("keyboards/${keyboardname}.yaml")
     val initialLayout = try {
         LayoutParser.parseLayout(originalYamlFile)
@@ -47,37 +58,58 @@ fun parallelImprovement(runs: Int = 25, keyboardname: String = "ltsnergorowstagg
             val bestLayoutInRun = improveLayout(
                 initialLayout = initialLayout,
                 corpusData = corpusData,
-                iterations = 20000,
                 applyHotShuffle = useHotShuffle
             )
 
-            // Csendes kiértékelés a végeredményhez
             val finalAnalysis = completeLayoutAnalysis(bestLayoutInRun, corpusData, verbose = false)
 
             val modeStr = if (useHotShuffle) "Kevert" else "Eredeti"
-            println("--- $i. szál végzett ($modeStr). Effort: ${String.format("%.4f", finalAnalysis.totalEffort)} ---")
+            println("--- $i. szál végzett ($modeStr). SA Effort: ${String.format("%.4f", finalAnalysis.totalEffort)} ---")
 
             // Visszaadjuk a kiszámolt párost
             Pair(finalAnalysis.totalEffort, bestLayoutInRun)
         }
     }
 
-    // Bevárjuk mind a 15 szálat, és egy listába gyűjtjük az eredményeiket
-    val results = deferredResults.awaitAll().toMutableList()
+    val rawResults = deferredResults.awaitAll()
+    val saTimeSeconds = (System.currentTimeMillis() - startTime) / 1000.0
+    println("\nMind a $runs SA futás befejeződött (${String.format("%.1f", saTimeSeconds)} mp).")
+
+    // 2. Rendezzük az SA eredményeket, kiszűrjük a duplikációkat, és kivesszük a legjobb 32-t
+    val topCandidatesForPolish = rawResults
+        .sortedBy { it.first }
+        .distinctBy { layoutSignature(it.second) }
+        .take(32)
+
+    println("\n=== TOP ${topCandidatesForPolish.size} JELÖLT 2-OPT VÉGSŐ CSISZOLÁSA PÁRHUZAMOSAN ===")
+    val polishStartTime = System.currentTimeMillis()
+
+    // 3. Párhuzamos 2-opt csiszolás a legjobb jelölteken (egyetlen 32 szálas CPU-hullám)
+    val polishedResults = topCandidatesForPolish.mapIndexed { idx, (saEffort, candidateLayout) ->
+        async(Dispatchers.Default) {
+            val polishedLayout = polishLayout2Opt(candidateLayout, corpusData)
+            val polishedAnalysis = completeLayoutAnalysis(polishedLayout, corpusData, verbose = false)
+            val diff = polishedAnalysis.totalEffort - saEffort
+            println("--- Jelölt #${idx + 1} csiszolva: ${String.format("%.4f", saEffort)} -> ${String.format("%.4f", polishedAnalysis.totalEffort)} (Delta: ${String.format("%.4f", diff)}) ---")
+            Pair(polishedAnalysis.totalEffort, polishedLayout)
+        }
+    }.awaitAll()
+
+    val polishTimeSeconds = (System.currentTimeMillis() - polishStartTime) / 1000.0
     val totalTimeSeconds = (System.currentTimeMillis() - startTime) / 1000.0
-    println("\nMind a $runs futás befejeződött. Teljes idő: ${String.format("%.1f", totalTimeSeconds)} mp")
+    println("2-opt csiszolás kész (${String.format("%.1f", polishTimeSeconds)} mp). Teljes futásidő: ${String.format("%.1f", totalTimeSeconds)} mp")
 
-    // 2. Rendezzük az eredményeket a legkisebb (legjobb) Effort szerint növekvő sorrendbe
-    results.sortBy { it.first }
-
-    // 3. Kiválasztjuk a legjobb 3-at
-    val top3 = results.take(3)
+    // 4. Újrarendezés a csiszolt pontszámok alapján, ismételt duplikációszűrés (ha két szál ugyanabba a 2-opt minimumba esett), majd Top 3
+    val top3 = polishedResults
+        .sortedBy { it.first }
+        .distinctBy { layoutSignature(it.second) }
+        .take(3)
 
     println("\n==================================================")
     println("=== A LEGJOBB 3 KIOSZTÁS KIÉRTÉKELÉSE ÉS MENTÉSE ===")
     println("==================================================")
 
-    // --- ÚJ: Mappa létrehozása a mentéshez ---
+    // Mappa létrehozása a mentéshez
     val formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd-HH-mm-ss")
     val timestamp = LocalDateTime.now().format(formatter)
     val safeLayoutName = initialLayout.name.replace(" ", "_")
@@ -88,7 +120,7 @@ fun parallelImprovement(runs: Int = 25, keyboardname: String = "ltsnergorowstagg
 
     println("Eredmények mentése ide: ${outputDir.absolutePath}")
 
-    // A top 3 mentése már hagyományosan, egymás után történik, hogy a fájlba írás véletlenül se akadjon össze
+    // A top 3 mentése egymás után
     for ((index, pair) in top3.withIndex()) {
         val rank = index + 1
         val (effort, layout) = pair
