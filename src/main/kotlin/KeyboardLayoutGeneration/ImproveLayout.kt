@@ -66,8 +66,8 @@ fun parallelImprovement(runs: Int = 25, keyboardname: String = "ltsnergomini") =
             val modeStr = if (useHotShuffle) "Kevert" else "Eredeti"
             println("--- $i. szál végzett ($modeStr). SA Effort: ${String.format("%.4f", finalAnalysis.totalEffort)} ---")
 
-            // Visszaadjuk a kiszámolt párost
-            Pair(finalAnalysis.totalEffort, bestLayoutInRun)
+            // VÁLTOZÁS: Triple-t adunk vissza, hogy megőrizzük a Hot Shuffle információt
+            Triple(finalAnalysis.totalEffort, bestLayoutInRun, useHotShuffle)
         }
     }
 
@@ -85,13 +85,18 @@ fun parallelImprovement(runs: Int = 25, keyboardname: String = "ltsnergomini") =
     val polishStartTime = System.currentTimeMillis()
 
     // 3. Párhuzamos 2-opt csiszolás a legjobb jelölteken (egyetlen 32 szálas CPU-hullám)
-    val polishedResults = topCandidatesForPolish.mapIndexed { idx, (saEffort, candidateLayout) ->
+    val polishedResults = topCandidatesForPolish.mapIndexed { idx, candidate ->
         async(Dispatchers.Default) {
+            val (saEffort, candidateLayout, usedHotShuffle) = candidate
+
             val polishedLayout = polishLayout2Opt(candidateLayout, corpusData)
             val polishedAnalysis = completeLayoutAnalysis(polishedLayout, corpusData, verbose = false)
             val diff = polishedAnalysis.totalEffort - saEffort
+
             println("--- Jelölt #${idx + 1} csiszolva: ${String.format("%.4f", saEffort)} -> ${String.format("%.4f", polishedAnalysis.totalEffort)} (Delta: ${String.format("%.4f", diff)}) ---")
-            Pair(polishedAnalysis.totalEffort, polishedLayout)
+
+            // VÁLTOZÁS: A csiszolás után is megtartjuk a módszer flag-jét
+            Triple(polishedAnalysis.totalEffort, polishedLayout, usedHotShuffle)
         }
     }.awaitAll()
 
@@ -99,7 +104,7 @@ fun parallelImprovement(runs: Int = 25, keyboardname: String = "ltsnergomini") =
     val totalTimeSeconds = (System.currentTimeMillis() - startTime) / 1000.0
     println("2-opt csiszolás kész (${String.format("%.1f", polishTimeSeconds)} mp). Teljes futásidő: ${String.format("%.1f", totalTimeSeconds)} mp")
 
-    // 4. Újrarendezés a csiszolt pontszámok alapján, ismételt duplikációszűrés (ha két szál ugyanabba a 2-opt minimumba esett), majd Top 3
+    // 4. Újrarendezés a csiszolt pontszámok alapján, ismételt duplikációszűrés, majd Top 3
     val top3 = polishedResults
         .sortedBy { it.first }
         .distinctBy { layoutSignature(it.second) }
@@ -109,21 +114,63 @@ fun parallelImprovement(runs: Int = 25, keyboardname: String = "ltsnergomini") =
     println("=== A LEGJOBB 3 KIOSZTÁS KIÉRTÉKELÉSE ÉS MENTÉSE ===")
     println("==================================================")
 
-    // Mappa létrehozása a mentéshez
+    // Mappák és név generálása
     val formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd-HH-mm-ss")
     val timestamp = LocalDateTime.now().format(formatter)
     val safeLayoutName = initialLayout.name.replace(" ", "_")
-
     val runDirName = "$safeLayoutName-$timestamp"
-    val outputDir = File("generatedkeyboards/$runDirName")
-    outputDir.mkdirs() // Létrehozza a mappát, ha nem létezik
 
+    // Layout mappa
+    val outputDir = File("generatedkeyboards/$runDirName")
+    outputDir.mkdirs()
     println("Eredmények mentése ide: ${outputDir.absolutePath}")
 
+    // --- ÚJ RÉSZ: ImprovementLogs mappa és log fájl elkészítése ---
+    val logDir = File("ImprovementLogs")
+    logDir.mkdirs()
+    val logFile = File(logDir, "$runDirName.txt")
+
+    logFile.bufferedWriter().use { writer ->
+        writer.write("=== OPTIMALIZÁLÁSI LOG ===")
+        writer.newLine()
+        writer.write("Billentyűzet: ${initialLayout.name}")
+        writer.newLine()
+        writer.write("Futtatás időpontja: $timestamp")
+        writer.newLine()
+        writer.write("Futtatott SA iterációk szálanként: Párhuzamos futás")
+        writer.newLine()
+        writer.write("Összes szál: $runs (Ebből eredeti: $numOriginalRuns, Hot Shuffle: ${runs - numOriginalRuns})")
+        writer.newLine()
+        writer.write("Teljes futásidő: ${String.format("%.1f", totalTimeSeconds)} mp")
+        writer.newLine()
+        writer.newLine()
+        writer.write("--- TOP 3 EREDMÉNY ---")
+        writer.newLine()
+
+        for ((index, triple) in top3.withIndex()) {
+            val rank = index + 1
+            val effort = triple.first
+            val layout = triple.second
+            val usedHotShuffle = triple.third
+
+            val methodStr = if (usedHotShuffle) "Hot Shuffle (Kevert kezdőállapot)" else "Eredeti Layout finomhangolása"
+
+            writer.write("$rank. Helyezett:")
+            writer.newLine()
+            writer.write(" - Effort pontszám: ${String.format("%.4f", effort)}")
+            writer.newLine()
+            writer.write(" - Származás: $methodStr")
+            writer.newLine()
+            writer.newLine()
+        }
+    }
+    println("Log fájl elmentve: ${logFile.absolutePath}")
+    // ---------------------------------------------------------------
+
     // A top 3 mentése egymás után
-    for ((index, pair) in top3.withIndex()) {
+    for ((index, triple) in top3.withIndex()) {
         val rank = index + 1
-        val (effort, layout) = pair
+        val (effort, layout, _) = triple
 
         layout.name = "${safeLayoutName}_optimized_$rank"
 
