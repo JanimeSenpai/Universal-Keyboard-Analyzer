@@ -13,7 +13,7 @@ fun layoutcharefforts(layout: CombinedLayoutData) {
     val effortMap = layout.buildCharEffortMap()
 
     // Eredmény kiíratása (terhelés szerint növekvő sorrendben)
-    println("Beolvasott billentyűzet karakter-terhelései:")
+    //println("Beolvasott billentyűzet karakter-terhelései:")  //ezt a továbbiakban nem akarom kiírni
     effortMap.entries.sortedBy { it.value }.forEach { (char, effort) ->
         // 3 tizedesjegyre kerekítve a könnyebb olvashatóságért
         println("$char : ${String.format("%.3f", effort)}")

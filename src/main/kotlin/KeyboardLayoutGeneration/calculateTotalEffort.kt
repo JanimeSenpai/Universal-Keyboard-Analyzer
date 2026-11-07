@@ -127,7 +127,8 @@ fun improveLayout(
     iterations: Int = 42000,
     initialTemp: Double = 10.0,
     finalTemp: Double = 0.005,
-    applyHotShuffle: Boolean = true
+    applyHotShuffle: Boolean = true,
+    verbose:Boolean = false
 ): CombinedLayoutData {
     // Dolgozzunk egy másolaton, hogy az eredeti objektum érintetlen maradjon, ha kell
     var currentLayout = initialLayout.deepCopy("${initialLayout.name}_current")
@@ -202,7 +203,7 @@ fun improveLayout(
                 bestLayout = currentLayout.deepCopy("${initialLayout.name}_optimized")
                 bestEnergy = currentEnergy
                 stepsSinceLastBest = 0
-                println("[Lépés: $step | T: ${String.format("%.4f", temp)}] Új legjobb Effort: ${String.format("%.4f", bestEnergy)}")
+               if(verbose) println("[Lépés: $step | T: ${String.format("%.4f", temp)}] Új legjobb Effort: ${String.format("%.4f", bestEnergy)}")
             } else {
                 stepsSinceLastBest++
             }

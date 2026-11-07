@@ -47,12 +47,13 @@ fun spaceSfs1Analysis(
     // 1. Kéz, Ujj és Koordináta hozzárendelés feltérképezése
     val charToPos = buildCharPositionMap(layoutData)
 
+   /* egyelőre akkor sem vagyunk erre kíváncsiak, ha egyébként verbose módban fut az elemzés
     if(verbose) {
         charToPos.toList().sortedBy { it.second.finger }.forEach {
             println(it)
         }
     }
-
+*/
 
     // Tömbök kiterjesztve 10 elemre
     val fingerSfs1 = DoubleArray(10) { 0.0 }
