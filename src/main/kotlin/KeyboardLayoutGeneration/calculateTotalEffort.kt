@@ -113,34 +113,44 @@ fun calculateTotalEffort(result: LayoutAnalysisResult): Double {
     return penalties - rewards
 }
 
+
 /**
  * Simulated Annealing alapú optimalizáló függvény.
- *
- * Dinamikusan skálázza a hűtést az iterációszámhoz (ha a coolingRate nincs fixen megadva),
- * és a hőmérséklet függvényében súlyozza a mutációs műveleteket.
- * Bemenetként kap egy kezdeti layoutot, és visszaadja a megtalált legjobb (legkisebb effortú) változatot.
- */
-/**
- * Simulated Annealing alapú optimalizáló függvény.
+ * - Korlátozza a forró fázis hosszát nagy iterációszámok esetén is (fix keveredési idő).
+ * - Az eredeti layoutot finomhangoló szálakat (applyHotShuffle = false) alacsonyabb T-ről indítja,
+ *   hogy ne olvassza szét a kiindulási struktúrát.
+ * - Újramelegítéskor (Reheating) újraszámolja a hűtési rátát a hátralévő lépésekre.
  */
 fun improveLayout(
     initialLayout: CombinedLayoutData,
     corpusData: CorpusData,
-    iterations: Int = 10000,
+    iterations: Int = 20000,
     initialTemp: Double = 10.0,
-    coolingRate: Double? = null,
     finalTemp: Double = 0.005,
-    applyHotShuffle: Boolean = true // <-- ÚJ PARAMÉTER
+    applyHotShuffle: Boolean = true
 ): CombinedLayoutData {
     // Dolgozzunk egy másolaton, hogy az eredeti objektum érintetlen maradjon, ha kell
     var currentLayout = initialLayout.deepCopy("${initialLayout.name}_current")
     val mainRows = currentLayout.numRows - 1
 
-    // --- KEZDETI FORRÓ KEVERÉS (HOT SHUFFLE) FELTÉTELHEZ KÖTVE ---
+    // Különböző termikus profil a kevert (globális kereső) és az eredeti (finomhangoló) szálaknak
+    val midTemp = 1.5
+    val hotPhaseSteps: Int
+    var temp: Double
+
     if (applyHotShuffle) {
+        // 1. Globális keresés: összekeverjük a táblát, és adunk neki egy rövid,
+        // maximum 2500 lépéses forró rendeződési fázist (T = 10.0 -> 1.5)
         for (i in 1..50) {
             mutateSwapRandomKeys(currentLayout, leftThumbEnabled = false, rightThumbEnabled = false, mainRows = mainRows)
         }
+        hotPhaseSteps = minOf(2500, (iterations * 0.15).toInt()).coerceAtLeast(1)
+        temp = initialTemp
+    } else {
+        // 2. Eredeti layout finomhangolása: nem keverjük össze, és közvetlenül
+        // T = 1.5-ről indítjuk, hogy ne verje szét a meglévő jó struktúrát
+        hotPhaseSteps = 0
+        temp = midTemp
     }
 
     var currentAnalysis = completeLayoutAnalysis(currentLayout, corpusData, verbose = false)
@@ -149,16 +159,17 @@ fun improveLayout(
     var bestLayout = currentLayout.deepCopy("${initialLayout.name}_optimized")
     var bestEnergy = currentEnergy
 
-    var temp = initialTemp
-    val effectiveCoolingRate = coolingRate ?: (finalTemp / initialTemp).pow(1.0 / iterations)
+    // Hűtési ráták: a forró fázis után mindig a hátralévő lépésekre skálázunk
+    val hotCoolingRate = if (hotPhaseSteps > 0) (midTemp / initialTemp).pow(1.0 / hotPhaseSteps) else 1.0
+    var mainCoolingRate = (finalTemp / midTemp).pow(1.0 / (iterations - hotPhaseSteps).coerceAtLeast(1))
+
     var stepsSinceLastBest = 0
 
-    val shuffleText = if (applyHotShuffle) "keverés után" else "eredeti állapotból"
-    println("=== Optimalizálás indítása: ${initialLayout.name} ===")
-    println("Kezdeti Total Effort ($shuffleText): ${String.format("%.4f", currentEnergy)} | CoolingRate: ${String.format("%.6f", effectiveCoolingRate)}")
+    val modeStr = if (applyHotShuffle) "Hot Shuffle (Forró fázis: $hotPhaseSteps lépés)" else "Eredeti finomhangolás (T0 = $midTemp)"
+    println("=== Optimalizálás indítása: ${initialLayout.name} [$modeStr] ===")
+    println("Kezdeti Total Effort: ${String.format("%.4f", currentEnergy)}")
 
     for (step in 1..iterations) {
-        // 1. Készítünk egy munkamásolatot és végrehajtunk rajta egy hőmérséklet-függő mutációt
         val candidateLayout = currentLayout.deepCopy()
         performMutation(
             layout = candidateLayout,
@@ -199,19 +210,29 @@ fun improveLayout(
             stepsSinceLastBest++
         }
 
-        // ÚJRAMELEGÍTÉS (REHEATING)
-        if (stepsSinceLastBest > 4000 && step < iterations * 0.70) {
+        // --- ÚJRAMELEGÍTÉS (REHEATING) ÉS HŰTÉS ---
+        // Ha 4000 lépése stagnálunk, már túl vagyunk a forró fázison, és még van hátra legalább 15% idő a lehűlésre
+        if (stepsSinceLastBest > 4000 && step > hotPhaseSteps && step < iterations * 0.85) {
             currentLayout = bestLayout.deepCopy("${initialLayout.name}_current")
             currentEnergy = bestEnergy
-            temp = 1.5
+            temp = 1.2 // Visszamelegítés az átmeneti zónába
             stepsSinceLastBest = 0
-            println("[Lépés: $step] ÚJRAMELEGÍTÉS! Visszatérés a legjobbhoz, a hőmérséklet ismét T = 1.5")
+
+            // KRITIKUS: Újraszámoljuk a hűtési rátát a HÁTRALÉVŐ lépésekre, hogy a végére biztosan elérje a finalTemp-et!
+            val remainingSteps = (iterations - step).coerceAtLeast(1)
+            mainCoolingRate = (finalTemp / temp).pow(1.0 / remainingSteps)
+
+            println("[Lépés: $step] ÚJRAMELEGÍTÉS! T = $temp, új coolingRate a hátralévő $remainingSteps lépésre: ${String.format("%.6f", mainCoolingRate)}")
         } else {
-            temp *= effectiveCoolingRate
+            if (step <= hotPhaseSteps) {
+                temp *= hotCoolingRate
+            } else {
+                temp *= mainCoolingRate
+            }
         }
     }
 
-    println("=== Optimalizálás befejezve ===")
+    println("=== Optimalizálás befejezve (Végső T: ${String.format("%.5f", temp)}) ===")
     println("Végső legjobb Total Effort: ${String.format("%.4f", bestEnergy)}")
 
     return bestLayout
