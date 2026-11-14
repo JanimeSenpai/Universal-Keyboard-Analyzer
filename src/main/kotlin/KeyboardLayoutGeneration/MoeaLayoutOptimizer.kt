@@ -18,6 +18,7 @@ import java.io.File
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 import java.util.concurrent.atomic.AtomicInteger
+import kotlin.random.Random
 
 /**
  * Egy fizikai billentyűpozíció egyedi koordinátája a kétkezes mátrixban.
@@ -70,14 +71,43 @@ fun collectOptimizablePositions(
 /**
  * MOEA Framework Problem definíció a billentyűzet-optimalizáláshoz.
  * 1 darab Permutation változót optimalizál a kijelölt pozíciókon, 1 célfüggvénnyel (Total Effort).
+ * Magában foglalja a 2D-s billentyűzet-topológiát ismerő mutációs operátorokat:
+ * - swapRandomKeys, swapAdjacentKeys, swapKeysCycle3
+ * - swapColumns, swapRowsLocal, swapRowsGlobal, mirrorHand
  */
 class KeyboardLayoutProblem(
     private val templateLayout: CombinedLayoutData,
     private val corpusData: CorpusData,
-    val positions: List<KeyPos>
+    val positions: List<KeyPos>,
+    private val maxEvaluations: Int,
+    private val populationSize: Int
 ) : AbstractProblem(1, 1) {
 
     private val totalPositions = positions.size
+    private val mainRows = templateLayout.numRows - 1
+    private val leftCols = templateLayout.leftChars[0].size
+    private val rightCols = templateLayout.rightChars[0].size
+
+    // Kiértékelés-számláló az adott szigeten a futási előrehaladás (progress) követéséhez
+    private var evalCount = 0
+
+    // 2D koordináta -> 1D permutációs index gyorsítótárak (hogy O(1) időben tudjunk oszlopot/sort cserélni)
+    private val leftPosIndex = Array(templateLayout.numRows) { r ->
+        IntArray(templateLayout.leftChars[r].size) { -1 }
+    }
+    private val rightPosIndex = Array(templateLayout.numRows) { r ->
+        IntArray(templateLayout.rightChars[r].size) { -1 }
+    }
+
+    init {
+        for ((idx, pos) in positions.withIndex()) {
+            if (pos.isLeft) {
+                leftPosIndex[pos.row][pos.col] = idx
+            } else {
+                rightPosIndex[pos.row][pos.col] = idx
+            }
+        }
+    }
 
     // Kiolvassuk az eredeti karakterkészletet (az '_' üres helyekkel együtt) a kijelölt pozíciókból
     private val baseChars: CharArray = CharArray(totalPositions) { idx ->
@@ -93,6 +123,158 @@ class KeyboardLayoutProblem(
         val solution = Solution(1, 1)
         solution.setVariable(0, EncodingUtils.newPermutation(totalPositions))
         return solution
+    }
+
+    // --- 2D TOPOLÓGIA-TUDATOS MUTÁCIÓS PRIMITÍVEK A PERMUTÁCIÓS TÖMBÖN ---
+
+    private fun swapPermKeys(perm: IntArray, left1: Boolean, r1: Int, c1: Int, left2: Boolean, r2: Int, c2: Int) {
+        val idx1 = if (left1) leftPosIndex[r1][c1] else rightPosIndex[r1][c1]
+        val idx2 = if (left2) leftPosIndex[r2][c2] else rightPosIndex[r2][c2]
+        if (idx1 >= 0 && idx2 >= 0) {
+            val tmp = perm[idx1]
+            perm[idx1] = perm[idx2]
+            perm[idx2] = tmp
+        }
+    }
+
+    // 1. Globális véletlen 2-es csere (beleértve az esetleg engedélyezett thumb gombokat is)
+    private fun mutateSwapRandomKeys(perm: IntArray) {
+        val i = Random.nextInt(totalPositions)
+        var j = Random.nextInt(totalPositions - 1)
+        if (j >= i) j++
+        val tmp = perm[i]
+        perm[i] = perm[j]
+        perm[j] = tmp
+    }
+
+    // 2. Szomszédos gombok cseréje (egy kézen belül vízszintesen, függőlegesen vagy átlósan)
+    private fun mutateSwapAdjacentKeys(perm: IntArray) {
+        val isLeft = Random.nextBoolean()
+        val cols = if (isLeft) leftCols else rightCols
+        val r1 = Random.nextInt(mainRows)
+        val c1 = Random.nextInt(cols)
+
+        val dr = Random.nextInt(-1, 2)
+        val dc = Random.nextInt(-1, 2)
+        val r2 = (r1 + dr).coerceIn(0, mainRows - 1)
+        val c2 = (c1 + dc).coerceIn(0, cols - 1)
+
+        if (r1 == r2 && c1 == c2) {
+            val fallbackR2 = if (r1 + 1 < mainRows) r1 + 1 else (r1 - 1).coerceAtLeast(0)
+            swapPermKeys(perm, isLeft, r1, c1, isLeft, fallbackR2, c1)
+        } else {
+            swapPermKeys(perm, isLeft, r1, c1, isLeft, r2, c2)
+        }
+    }
+
+    // 3. Háromelemű cikluscsere (2-opt lokális minimumokból való kitöréshez)
+    private fun mutateSwapCycle3(perm: IntArray) {
+        val i1 = Random.nextInt(totalPositions)
+        var i2 = Random.nextInt(totalPositions)
+        while (i2 == i1) i2 = Random.nextInt(totalPositions)
+        var i3 = Random.nextInt(totalPositions)
+        while (i3 == i1 || i3 == i2) i3 = Random.nextInt(totalPositions)
+
+        val tmp = perm[i1]
+        perm[i1] = perm[i2]
+        perm[i2] = perm[i3]
+        perm[i3] = tmp
+    }
+
+    // 4. Teljes oszlopcsere (üres cellákkal együtt, Thumb sor kihagyásával)
+    private fun mutateSwapColumns(perm: IntArray) {
+        val left1 = Random.nextBoolean()
+        val left2 = Random.nextBoolean()
+        val cols1 = if (left1) leftCols else rightCols
+        val cols2 = if (left2) leftCols else rightCols
+
+        val c1 = Random.nextInt(cols1)
+        var c2 = Random.nextInt(cols2)
+        while (left1 == left2 && c1 == c2) {
+            c2 = Random.nextInt(cols2)
+        }
+
+        for (r in 0 until mainRows) {
+            swapPermKeys(perm, left1, r, c1, left2, r, c2)
+        }
+    }
+
+    // 5. Helyi sorcsere (egyik kézen belül, Thumb sor kihagyásával)
+    private fun mutateSwapRowsLocal(perm: IntArray, isLeft: Boolean = Random.nextBoolean()) {
+        if (mainRows < 2) return
+        val r1 = Random.nextInt(mainRows)
+        var r2 = Random.nextInt(mainRows)
+        while (r1 == r2) r2 = Random.nextInt(mainRows)
+
+        val cols = if (isLeft) leftCols else rightCols
+        for (c in 0 until cols) {
+            swapPermKeys(perm, isLeft, r1, c, isLeft, r2, c)
+        }
+    }
+
+    // 6. Globális sorcsere (mindkét térfélen egyszerre, Thumb sor kihagyásával)
+    private fun mutateSwapRowsGlobal(perm: IntArray) {
+        if (mainRows < 2) return
+        val r1 = Random.nextInt(mainRows)
+        var r2 = Random.nextInt(mainRows)
+        while (r1 == r2) r2 = Random.nextInt(mainRows)
+
+        for (c in 0 until leftCols) swapPermKeys(perm, true, r1, c, true, r2, c)
+        for (c in 0 until rightCols) swapPermKeys(perm, false, r1, c, false, r2, c)
+    }
+
+    // 7. Kézen belüli tükrözés (egyik kéz oszlopainak megfordítása, Thumb sor kihagyásával)
+    private fun mutateMirrorHand(perm: IntArray) {
+        val isLeft = Random.nextBoolean()
+        val cols = if (isLeft) leftCols else rightCols
+        for (r in 0 until mainRows) {
+            for (c in 0 until cols / 2) {
+                swapPermKeys(perm, isLeft, r, c, isLeft, r, cols - 1 - c)
+            }
+        }
+    }
+
+    /**
+     * Végrehajtja a mutációt az utódon a futás előrehaladásától (progress: 0.0 -> 1.0) függő súlyozással,
+     * pontosan ugyanazokkal az operátorokkal, amelyeket a Simulated Annealing is használ.
+     */
+    private fun performTopologyAwareMutation(perm: IntArray, progress: Double) {
+        val roll = Random.nextDouble()
+
+        if (progress < 0.30) {
+            // KORAI FÁZIS (0% - 30%): Erős strukturális keresés (oszlopok, sorok, tükrözés)
+            when {
+                roll < 0.35 -> mutateSwapRandomKeys(perm)
+                roll < 0.50 -> { mutateSwapRandomKeys(perm); mutateSwapRandomKeys(perm) } // Dupla 2-es csere
+                roll < 0.65 -> mutateSwapCycle3(perm)
+                roll < 0.80 -> mutateSwapColumns(perm)
+                roll < 0.88 -> mutateSwapRowsLocal(perm)
+                roll < 0.94 -> mutateSwapRowsGlobal(perm)
+                else -> mutateMirrorHand(perm)
+            }
+        } else if (progress < 0.75) {
+            // KÖZÉPSŐ FÁZIS (30% - 75%): Kiegyensúlyozott makromutációk és lokális finomítás
+            when {
+                roll < 0.30 -> mutateSwapRandomKeys(perm)
+                roll < 0.55 -> mutateSwapAdjacentKeys(perm)
+                roll < 0.75 -> mutateSwapCycle3(perm)
+                roll < 0.88 -> mutateSwapColumns(perm)
+                roll < 0.94 -> mutateSwapRowsLocal(perm)
+                roll < 0.97 -> mutateSwapRowsGlobal(perm)
+                else -> mutateMirrorHand(perm)
+            }
+        } else {
+            // VÉGSŐ FÁZIS (75% - 100%): Intenzív lokális finomhangolás és 3-as ciklusok
+            when {
+                roll < 0.35 -> mutateSwapRandomKeys(perm)
+                roll < 0.70 -> mutateSwapAdjacentKeys(perm)
+                roll < 0.90 -> mutateSwapCycle3(perm)
+                roll < 0.96 -> mutateSwapColumns(perm)
+                roll < 0.98 -> mutateSwapRowsLocal(perm)
+                roll < 0.99 -> mutateSwapRowsGlobal(perm)
+                else -> mutateMirrorHand(perm)
+            }
+        }
     }
 
     /**
@@ -129,10 +311,17 @@ class KeyboardLayoutProblem(
     }
 
     override fun evaluate(solution: Solution) {
+        evalCount++
         val permutation = EncodingUtils.getPermutation(solution.getVariable(0))
 
-        // Kanonizáljuk az '_' azonosítókat és visszaírjuk az egyedbe,
-        // hogy a PMX keresztezés ne cserélgessen feleslegesen két üres helyet
+        // A kezdeti populáció (első populationSize egyed) után minden új utódon
+        // végrehajtjuk a 2D-topológia-tudatos mutációt (oszlopcsere, sorcsere, tükrözés, stb.)
+        if (evalCount > populationSize) {
+            val progress = (evalCount.toDouble() / maxEvaluations).coerceIn(0.0, 1.0)
+            performTopologyAwareMutation(permutation, progress)
+        }
+
+        // Kanonizáljuk az '_' azonosítókat és visszaírjuk a módosított kromoszómát az egyedbe
         canonicalizeUnderscores(permutation)
         EncodingUtils.setPermutation(solution.getVariable(0), permutation)
 
@@ -144,13 +333,13 @@ class KeyboardLayoutProblem(
 }
 
 /**
- * Párhuzamos Memetikus Optimalizáló (MOEA Framework GA + 2-opt Polish).
+ * Párhuzamos Memetikus Optimalizáló (MOEA Framework GA + Topológia-tudatos mutációk + 2-opt Polish).
  * Indítható több független szigeten (islands), majd a legjobbakat 2-opt-tal csiszolja.
  */
 fun parallelMoeaImprovement(
     islands: Int = 32,
-    evaluationsPerIsland: Int = 350000, // 32 * 350 000 = 11,2M kiértékelés (~45 perc, fair verseny a 256-os SA-val)
-    populationSize: Int = 50,           // 25 helyett 50: hosszabb ideig fenntartja a genetikai diverzitást (7000 generáció)
+    evaluationsPerIsland: Int = 100000,
+    populationSize: Int = 40,
     keyboardname: String = "ltsnergomini",
     leftThumbEnabled: Boolean = false,  // Jelenleg kikapcsolva: thumb_left nem kap betűt
     rightThumbEnabled: Boolean = false  // Jelenleg kikapcsolva: thumb_right nem kap betűt
@@ -166,7 +355,7 @@ fun parallelMoeaImprovement(
     val corpusData = CorpusData.loadFromDataset("huszonkettoHuszonnegyeswikipediahuszonegy.txt")
     val positions = collectOptimizablePositions(initialLayout, leftThumbEnabled, rightThumbEnabled)
 
-    println("=== MOEA FRAMEWORK (GA + PMX) OPTIMALIZÁLÁS INDÍTÁSA ===")
+    println("=== MOEA FRAMEWORK (GA + PMX + TOPOLÓGIA-MUTÁCIÓK) INDÍTÁSA ===")
     println("-> Szigetek (párhuzamos GA futások): $islands | Kiértékelés/sziget: $evaluationsPerIsland | Populáció: $populationSize")
     println("-> Optimalizált pozíciók száma: ${positions.size} (Bal thumb: $leftThumbEnabled, Jobb thumb: $rightThumbEnabled)")
     val startTime = System.currentTimeMillis()
@@ -175,18 +364,23 @@ fun parallelMoeaImprovement(
     // 1. Párhuzamos GA szigetek futtatása a CPU szálain
     val deferredResults = (1..islands).map { i ->
         async(Dispatchers.Default) {
-            val problem = KeyboardLayoutProblem(initialLayout, corpusData, positions)
+            val problem = KeyboardLayoutProblem(
+                templateLayout = initialLayout,
+                corpusData = corpusData,
+                positions = positions,
+                maxEvaluations = evaluationsPerIsland,
+                populationSize = populationSize
+            )
 
             val resultPopulation = Executor()
                 .withProblem(problem)
                 .withAlgorithm("GA")
                 .withMaxEvaluations(evaluationsPerIsland)
                 .withProperty("populationSize", populationSize)
-                // Dupla "swap" lánc: 48% eséllyel 1 csere, 36% eséllyel 2 egyidejű csere (3-as ciklus / 4-es csere),
-                // így a GA ki tud törni a szigorú 2-opt lokális minimumokból is!
-                .withProperty("operator", "pmx+swap+swap")
-                .withProperty("pmx.rate", 0.30)  // Kicsit magasabb keresztezési arány az 50 fős populációhoz
-                .withProperty("swap.rate", 0.60) // Várhatóan 1.2 csere / utód (1 és 2 csere vegyesen)
+                // A MOEA-ban csak a PMX keresztezést kérjük (ami mindig lemásolja a szülőket),
+                // a 7-féle topológia-tudatos mutációt pedig a KeyboardLayoutProblem hajtja végre!
+                .withProperty("operator", "pmx")
+                .withProperty("pmx.rate", 0.25)
                 .run()
 
             val bestSolution = resultPopulation[0]
@@ -255,7 +449,7 @@ fun parallelMoeaImprovement(
     val logFile = File(logDir, "$runDirName.txt")
 
     logFile.bufferedWriter().use { writer ->
-        writer.write("=== MOEA FRAMEWORK (GA + PMX + 2-OPT) OPTIMALIZÁLÁSI LOG ===")
+        writer.write("=== MOEA FRAMEWORK (GA + PMX + TOPOLÓGIA-MUTÁCIÓK + 2-OPT) LOG ===")
         writer.newLine()
         writer.write("Billentyűzet: ${initialLayout.name}")
         writer.newLine()
@@ -277,7 +471,7 @@ fun parallelMoeaImprovement(
             writer.newLine()
             writer.write(" - Effort pontszám: ${String.format("%.4f", pair.first)}")
             writer.newLine()
-            writer.write(" - Származás: MOEA Framework GA (PMX + 2-opt)")
+            writer.write(" - Származás: MOEA Framework GA (PMX + Topológia-mutációk + 2-opt)")
             writer.newLine()
             writer.newLine()
         }
