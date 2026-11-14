@@ -16,8 +16,8 @@ import java.time.format.DateTimeFormatter
 
 fun main(){
     parallelChipsNSalsaImprovement(
-        runs = 32,
-        evaluationsPerRun = 50000,
+        runs = 256,
+        evaluationsPerRun = 42000,
         useSelfTuningLam = true,
         keyboardname = "ltsnergomini"
     )

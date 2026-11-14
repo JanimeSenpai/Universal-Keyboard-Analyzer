@@ -154,31 +154,35 @@ class TopologyUndoableMutation(
         val progress = (stepCount.toDouble() / maxEvaluations).coerceIn(0.0, 1.0)
         val roll = Random.nextDouble()
 
-        // A futás előrehaladtával (progress) a makromutációktól a lokális finomhangolás felé tolódunk
-        val action = when {
-            progress < 0.25 -> when {
-                roll < 0.40 -> 1 // Random 2-es csere
-                roll < 0.55 -> 7 // Szomszédos 2-es csere
-                roll < 0.70 -> 2 // 3-as ciklus
-                roll < 0.85 -> 3 // Oszlopcsere
-                roll < 0.92 -> 4 // Helyi sorcsere
-                roll < 0.96 -> 5 // Globális sorcsere
-                else -> 6        // Kéztükrözés
+        // Folytonos, sima átmenet (lépcsős ugrások nélkül), hogy a SelfTuningLam
+        // hőmérséklet-szabályozója ne kapjon sokkot a mutációs eloszlás váltásakor.
+        // Az első 75%-ban a makromutációk aránya 35%-ról másodfokú görbével 0%-ra cseng le.
+        val macroProb = if (progress < 0.75) {
+            val t = 1.0 - (progress / 0.75)
+            0.35 * t * t
+        } else {
+            0.0 // Az utolsó 25%-ban (befagyasztás) 0% makromutáció, csak finomhangolás!
+        }
+
+        val action = if (roll < macroProb) {
+            // Makromutációk (oszlopcsere, helyi/globális sorcsere, kéztükrözés)
+            val macroRoll = roll / macroProb
+            when {
+                macroRoll < 0.50 -> 3 // Oszlopcsere (50% a makromutációkon belül)
+                macroRoll < 0.75 -> 4 // Helyi sorcsere (25%)
+                macroRoll < 0.90 -> 5 // Globális sorcsere (15%)
+                else -> 6             // Kéztükrözés (10%)
             }
-            progress < 0.70 -> when {
-                roll < 0.35 -> 1 // Random 2-es csere
-                roll < 0.65 -> 7 // Szomszédos 2-es csere
-                roll < 0.82 -> 2 // 3-as ciklus
-                roll < 0.92 -> 3 // Oszlopcsere
-                roll < 0.96 -> 4 // Helyi sorcsere
-                roll < 0.98 -> 5 // Globális sorcsere
-                else -> 6        // Kéztükrözés
-            }
-            else -> when {
-                roll < 0.35 -> 1 // Random 2-es csere
-                roll < 0.75 -> 7 // Szomszédos 2-es csere
-                roll < 0.95 -> 2 // 3-as ciklus
-                else -> 3        // Ritka oszlopcsere
+        } else {
+            // Mikromutációk (globális 2-es csere, szomszédos 2-es csere, 3-as ciklus)
+            val microRoll = (roll - macroProb) / (1.0 - macroProb)
+            // A futás előrehaladtával nő a szomszédos cserék aránya (25% -> 55%)
+            val adjacentShare = 0.25 + 0.30 * progress
+            val cycle3Share = 0.20 * (1.0 - 0.5 * progress) // 20% -> 10%
+            when {
+                microRoll < adjacentShare -> 7                   // Szomszédos 2-es csere
+                microRoll < adjacentShare + cycle3Share -> 2     // 3-as cikluscsere
+                else -> 1                                        // Globális véletlen 2-es csere
             }
         }
 
