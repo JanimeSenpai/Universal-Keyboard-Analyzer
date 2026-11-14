@@ -149,8 +149,8 @@ class KeyboardLayoutProblem(
  */
 fun parallelMoeaImprovement(
     islands: Int = 32,
-    evaluationsPerIsland: Int = 50000,
-    populationSize: Int = 200,
+    evaluationsPerIsland: Int = 350000, // 32 * 350 000 = 11,2M kiértékelés (~45 perc, fair verseny a 256-os SA-val)
+    populationSize: Int = 50,           // 25 helyett 50: hosszabb ideig fenntartja a genetikai diverzitást (7000 generáció)
     keyboardname: String = "ltsnergomini",
     leftThumbEnabled: Boolean = false,  // Jelenleg kikapcsolva: thumb_left nem kap betűt
     rightThumbEnabled: Boolean = false  // Jelenleg kikapcsolva: thumb_right nem kap betűt
@@ -179,9 +179,14 @@ fun parallelMoeaImprovement(
 
             val resultPopulation = Executor()
                 .withProblem(problem)
-                .withAlgorithm("GA") // Genetikus Algoritmus (Permutációra automatikusan PMX + Swap/Insertion)
+                .withAlgorithm("GA")
                 .withMaxEvaluations(evaluationsPerIsland)
                 .withProperty("populationSize", populationSize)
+                // KRITIKUS: Kikapcsoljuk az alapértelmezett "insertion" operátort, mert az 1D-s
+                // beszúrásos eltolás elcsúsztatja a 2D billentyűzet-mátrix sorait és oszlopait!
+                .withProperty("operator", "pmx+swap")
+                .withProperty("pmx.rate", 0.20)  // Ritkább keresztezés, hogy ne verje szét a kialakuló völgyeket
+                .withProperty("swap.rate", 0.90) // Gyakori párcsere a lokális finomhangoláshoz
                 .run()
 
             val bestSolution = resultPopulation[0]
