@@ -400,38 +400,22 @@ fun parallelChipsNSalsaImprovement(
     logDir.mkdirs()
     val logFile = File(logDir, "$runDirName.txt")
 
-    logFile.bufferedWriter().use { writer ->
-        writer.write("=== CHIPS-N-SALSA ($scheduleName SA + 2-OPT) OPTIMALIZÁLÁSI LOG ===")
-        writer.newLine()
-        writer.write("Billentyűzet: ${initialLayout.name}")
-        writer.newLine()
-        writer.write("Futtatás időpontja: $timestamp")
-        writer.newLine()
-        writer.write("Összes szál: $runs (Eredeti: $originalRunsCount, Shuffled: $shuffledRunsCount) | Lépés/szál: $evaluationsPerRun")
-        writer.newLine()
-        writer.write("Hűtési ütemezés: $scheduleName | Hüvelykujj: Bal=$leftThumbEnabled, Jobb=$rightThumbEnabled")
-        writer.newLine()
-        writer.write("Teljes futásidő: ${String.format("%.1f", totalTimeSeconds)} mp")
-        writer.newLine()
-        writer.write("Korpusz neve: ${corpusData.datasetName}")
-        writer.newLine()
-        writer.newLine()
-        writer.write("--- TOP 3 EREDMÉNY ---")
-        writer.newLine()
-
-        for ((index, triple) in top3.withIndex()) {
-            val rank = index + 1
-            val originStr = if (triple.third) "Chips-n-Salsa $scheduleName (Shuffled)" else "Chips-n-Salsa $scheduleName (Eredeti)"
-            writer.write("$rank. Helyezett:")
-            writer.newLine()
-            writer.write(" - Effort pontszám: ${String.format("%.4f", triple.first)}")
-            writer.newLine()
-            writer.write(" - Származás: $originStr")
-            writer.newLine()
-            writer.newLine()
+    writeDetailedLog(
+        logFile = logFile,
+        logTitle = "CHIPS-N-SALSA ($scheduleName SA + 2-OPT) OPTIMALIZÁLÁSI LOG",
+        keyboardName = initialLayout.name,
+        timestamp = timestamp,
+        corpusName = corpusData.datasetName,
+        algorithmDetails = listOf(
+            "Összes szál: $runs (Eredeti: $originalRunsCount, Shuffled: $shuffledRunsCount) | Lépés/szál: $evaluationsPerRun",
+            "Hűtési ütemezés: $scheduleName | Hüvelykujj: Bal=$leftThumbEnabled, Jobb=$rightThumbEnabled"
+        ),
+        totalTimeSeconds = totalTimeSeconds,
+        topResults = top3.map { (effort, _, isShuffled) ->
+            val originStr = if (isShuffled) "Chips-n-Salsa $scheduleName (Shuffled)" else "Chips-n-Salsa $scheduleName (Eredeti)"
+            effort to originStr
         }
-    }
-    println("Log fájl elmentve: ${logFile.absolutePath}")
+    )
 
     for ((index, triple) in top3.withIndex()) {
         val rank = index + 1

@@ -17,10 +17,10 @@ import java.time.format.DateTimeFormatter
 fun main(){
     parallelChipsNSalsaImprovement(
         runs = 256,
-        evaluationsPerRun = 42000,
+        evaluationsPerRun = 50000,
         useSelfTuningLam = true,
-        keyboardname = "qwertycolstag",
-        corpusFileName = "monke.txt"
+        keyboardname = "ltsnergomini",
+        corpusFileName = "huszonkettoHuszonnegyeswikipediahuszonegy.txt"
     )
     //parallelMoeaImprovement(keyboardname = "ltsnergomini")
     //parallelImprovement(128, "ltsnergorowstagger")
@@ -38,7 +38,11 @@ private fun layoutSignature(layout: CombinedLayoutData): String {
 }
 
 // A runBlocking összeköti a hagyományos szinkron kódot a korutinok világával
-fun parallelImprovement(runs: Int = 25, keyboardname: String = "ltsnergomini") = runBlocking {
+fun parallelImprovement(
+    runs: Int = 25,
+    keyboardname: String = "ltsnergomini",
+    corpusFileName: String = "huszonkettoHuszonnegyeswikipediahuszonegy.txt"
+) = runBlocking {
     val originalYamlFile = File("keyboards/${keyboardname}.yaml")
     val initialLayout = try {
         LayoutParser.parseLayout(originalYamlFile)
@@ -47,7 +51,7 @@ fun parallelImprovement(runs: Int = 25, keyboardname: String = "ltsnergomini") =
         return@runBlocking
     }
 
-    val corpusData = CorpusData.loadFromDataset("huszonkettoHuszonnegyeswikipediahuszonegy.txt")
+    val corpusData = CorpusData.loadFromDataset(corpusFileName)
 
     // Kiszámoljuk, hány szál induljon az eredeti layoutból (N/10, de minimum 1)
     val numOriginalRuns = maxOf(1, runs / 10)
@@ -138,41 +142,22 @@ fun parallelImprovement(runs: Int = 25, keyboardname: String = "ltsnergomini") =
     logDir.mkdirs()
     val logFile = File(logDir, "$runDirName.txt")
 
-    logFile.bufferedWriter().use { writer ->
-        writer.write("=== OPTIMALIZÁLÁSI LOG ===")
-        writer.newLine()
-        writer.write("Billentyűzet: ${initialLayout.name}")
-        writer.newLine()
-        writer.write("Futtatás időpontja: $timestamp")
-        writer.newLine()
-        writer.write("Futtatott SA iterációk szálanként: Párhuzamos futás")
-        writer.newLine()
-        writer.write("Összes szál: $runs (Ebből eredeti: $numOriginalRuns, Hot Shuffle: ${runs - numOriginalRuns})")
-        writer.newLine()
-        writer.write("Teljes futásidő: ${String.format("%.1f", totalTimeSeconds)} mp")
-        writer.newLine()
-        writer.newLine()
-        writer.write("--- TOP 3 EREDMÉNY ---")
-        writer.newLine()
-
-        for ((index, triple) in top3.withIndex()) {
-            val rank = index + 1
-            val effort = triple.first
-            val layout = triple.second
-            val usedHotShuffle = triple.third
-
+    writeDetailedLog(
+        logFile = logFile,
+        logTitle = "SA + 2-OPT OPTIMALIZÁLÁSI LOG",
+        keyboardName = initialLayout.name,
+        timestamp = timestamp,
+        corpusName = corpusData.datasetName,
+        algorithmDetails = listOf(
+            "Futtatott SA iterációk szálanként: Párhuzamos futás",
+            "Összes szál: $runs (Ebből eredeti: $numOriginalRuns, Hot Shuffle: ${runs - numOriginalRuns})"
+        ),
+        totalTimeSeconds = totalTimeSeconds,
+        topResults = top3.map { (effort, _, usedHotShuffle) ->
             val methodStr = if (usedHotShuffle) "Hot Shuffle (Kevert kezdőállapot)" else "Eredeti Layout finomhangolása"
-
-            writer.write("$rank. Helyezett:")
-            writer.newLine()
-            writer.write(" - Effort pontszám: ${String.format("%.4f", effort)}")
-            writer.newLine()
-            writer.write(" - Származás: $methodStr")
-            writer.newLine()
-            writer.newLine()
+            effort to methodStr
         }
-    }
-    println("Log fájl elmentve: ${logFile.absolutePath}")
+    )
     // ---------------------------------------------------------------
 
     // A top 3 mentése egymás után

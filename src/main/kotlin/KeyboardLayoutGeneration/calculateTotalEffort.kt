@@ -4,59 +4,60 @@ import keyboard_analysis.CombinedLayoutData
 import keyboard_analysis.CorpusData
 import keyboard_analysis.LayoutAnalysisResult
 import keyboard_analysis.completeLayoutAnalysis
+import java.io.File
 import kotlin.math.abs
 import kotlin.math.exp
 import kotlin.math.pow
 import kotlin.random.Random
+
+// --- 1. BÜNTETŐ SÚLYOK (Minimalizálandó értékek -> növelik a Total Effortot) ---
+val weightCharReachEffort = 40.0
+val weightHandImbalance = 4.0
+
+// Cél: < 4-6%
+val weightPinkyOff = 2.0
+
+// Cél: < 1-1.5%
+val weightSfb = 15.0  //original 10
+
+// Cél: < 0.5% (ÚJ)
+val weightFullScissor = 15.0  //original 15
+val weightHalfScissor = weightFullScissor / 2 //original :2
+
+// Cél: < 1.5-2% (ÚJ)
+val weightLateralStretch = 8.0
+val weightPinkyStretch = 8.0
+
+// Cél: < 2-3%
+val weightRedirect = 4.0
+
+val weightSpaceSfs1 = 2.0
+
+val weightGravity = 0.5
+
+// Soronkénti terhelés súlyai (0: legfelső sor ... 5: thumb sor)
+//TODO megvalósítani, hogy magától tudja a program, hogy hány soros ez a billentyűzet és annak függvényében kiosztani ezeket a büntetőpontokat
+//az ujjak hossza bekerült a fizikai layout effort modellbe, így egyelőre ezek az értékek 0 súlyt kapnak
+val weightRow0 = 0.0
+val weightRow1 = 0.0
+val weightRow2 = 0.0
+val weightRow3 = 0.0 // Home row (ezt külön jutalmazzuk lent)
+val weightRow4 = 0.0
+val weightRow5 = 0.0 // Thumb row
+
+// --- 2. JUTALMAZÓ SÚLYOK (Maximalizálandó értékek -> csökkentik a Total Effortot) ---
+val weightHomeRow = 0.86
+
+// Cél: minél magasabb, együttesen > 40-50%
+val weightAlternation = 1.0
+val weightRoll = 1.3
+val weightThreeRoll = 1.6
 
 /**
  * Kiszámítja a billentyűzetkiosztás összesített jósági/terhelési mutatóját (Célfüggvény).
  * Minél KISEBB a visszaadott érték, annál jobb a kiosztás.
  */
 fun calculateTotalEffort(result: LayoutAnalysisResult): Double {
-
-    // --- 1. BÜNTETŐ SÚLYOK (Minimalizálandó értékek -> növelik a Total Effortot) ---
-    val weightCharReachEffort = 40.0
-    val weightHandImbalance = 4.0
-
-    // Cél: < 4-6%
-    val weightPinkyOff = 5.0
-
-    // Cél: < 1-1.5%
-    val weightSfb = 15.0  //original 10
-
-    // Cél: < 0.5% (ÚJ)
-    val weightFullScissor = 15.0  //original 15
-    val weightHalfScissor = weightFullScissor / 2 //original :2
-
-    // Cél: < 1.5-2% (ÚJ)
-    val weightLateralStretch = 8.0
-    val weightPinkyStretch = 8.0
-
-    // Cél: < 2-3%
-    val weightRedirect = 4.0
-
-    val weightSpaceSfs1 = 2.0
-
-    val weightGravity = 0.5
-
-    // Soronkénti terhelés súlyai (0: legfelső sor ... 5: thumb sor)
-    //TODO megvalósítani, hogy magától tudja a program, hogy hány soros ez a billentyűzet és annak függvényében kiosztani ezeket a büntetőpontokat
-    //az ujjak hossza bekerült a fizikai layout effort modellbe, így egyelőre ezek az értékek 0 súlyt kapnak
-    val weightRow0 = 0.0
-    val weightRow1 = 0.0
-    val weightRow2 = 0.0
-    val weightRow3 = 0.0 // Home row (ezt külön jutalmazzuk lent)
-    val weightRow4 = 0.0
-    val weightRow5 = 0.0 // Thumb row
-
-    // --- 2. JUTALMAZÓ SÚLYOK (Maximalizálandó értékek -> csökkentik a Total Effortot) ---
-    val weightHomeRow = 0.86
-
-    // Cél: minél magasabb, együttesen > 40-50%
-    val weightAlternation = 1.0
-    val weightRoll = 1.3
-    val weightThreeRoll = 1.6
 
     // Kéz-aszimmetria kiszámítása: |bal% - jobb%|
     //val handImbalance = kotlin.math.abs(result.handBalanceLeft - result.handBalanceRight)
@@ -111,6 +112,96 @@ fun calculateTotalEffort(result: LayoutAnalysisResult): Double {
                 (result.threerollPercentage * weightThreeRoll)
 
     return penalties - rewards
+}
+
+/**
+ * Egységes részletes log író függvény minden optimalizálóhoz (Saját SA, Chips-n-Salsa, MOEA).
+ * Automatikusan kiírja a futási paramétereket, a korpusz nevét, az összes célfüggvény-súlyt (weights)
+ * és a Top 3 helyezett adatait.
+ */
+fun writeDetailedLog(
+    logFile: File,
+    logTitle: String,
+    keyboardName: String,
+    timestamp: String,
+    corpusName: String,
+    algorithmDetails: List<String>,
+    totalTimeSeconds: Double,
+    topResults: List<Pair<Double, String>>
+) {
+    logFile.bufferedWriter().use { writer ->
+        writer.write("=== $logTitle ===")
+        writer.newLine()
+        writer.write("Billentyűzet: $keyboardName")
+        writer.newLine()
+        writer.write("Futtatás időpontja: $timestamp")
+        writer.newLine()
+        writer.write("Korpusz neve: $corpusName")
+        writer.newLine()
+        for (detail in algorithmDetails) {
+            writer.write(detail)
+            writer.newLine()
+        }
+        writer.write("Teljes futásidő: ${String.format("%.1f", totalTimeSeconds)} mp")
+        writer.newLine()
+        writer.newLine()
+
+        writer.write("--- CÉLFÜGGVÉNY SÚLYOK (WEIGHTS) ---")
+        writer.newLine()
+        writer.write("Büntető súlyok (Penalties):")
+        writer.newLine()
+        writer.write(" - weightCharReachEffort: $weightCharReachEffort")
+        writer.newLine()
+        writer.write(" - weightGravity:         $weightGravity")
+        writer.newLine()
+        writer.write(" - weightHandImbalance:   $weightHandImbalance")
+        writer.newLine()
+        writer.write(" - weightPinkyOff:        $weightPinkyOff")
+        writer.newLine()
+        writer.write(" - weightSfb:             $weightSfb")
+        writer.newLine()
+        writer.write(" - weightFullScissor:     $weightFullScissor")
+        writer.newLine()
+        writer.write(" - weightHalfScissor:     $weightHalfScissor")
+        writer.newLine()
+        writer.write(" - weightLateralStretch:  $weightLateralStretch")
+        writer.newLine()
+        writer.write(" - weightPinkyStretch:    $weightPinkyStretch")
+        writer.newLine()
+        writer.write(" - weightRedirect:        $weightRedirect")
+        writer.newLine()
+        writer.write(" - weightSpaceSfs1:       $weightSpaceSfs1")
+        writer.newLine()
+        writer.write(" - weightRows (0..5):     [$weightRow0, $weightRow1, $weightRow2, $weightRow3, $weightRow4, $weightRow5]")
+        writer.newLine()
+        writer.write("Jutalmazó súlyok (Rewards):")
+        writer.newLine()
+        writer.write(" - weightHomeRow:         $weightHomeRow")
+        writer.newLine()
+        writer.write(" - weightAlternation:     $weightAlternation")
+        writer.newLine()
+        writer.write(" - weightRoll:            $weightRoll")
+        writer.newLine()
+        writer.write(" - weightThreeRoll:       $weightThreeRoll")
+        writer.newLine()
+        writer.newLine()
+
+        writer.write("--- TOP ${topResults.size} EREDMÉNY ---")
+        writer.newLine()
+
+        for ((index, pair) in topResults.withIndex()) {
+            val rank = index + 1
+            val (effort, originStr) = pair
+            writer.write("$rank. Helyezett:")
+            writer.newLine()
+            writer.write(" - Effort pontszám: ${String.format("%.4f", effort)}")
+            writer.newLine()
+            writer.write(" - Származás: $originStr")
+            writer.newLine()
+            writer.newLine()
+        }
+    }
+    println("Log fájl elmentve: ${logFile.absolutePath}")
 }
 
 
@@ -203,7 +294,7 @@ fun improveLayout(
                 bestLayout = currentLayout.deepCopy("${initialLayout.name}_optimized")
                 bestEnergy = currentEnergy
                 stepsSinceLastBest = 0
-               if(verbose) println("[Lépés: $step | T: ${String.format("%.4f", temp)}] Új legjobb Effort: ${String.format("%.4f", bestEnergy)}")
+                if(verbose) println("[Lépés: $step | T: ${String.format("%.4f", temp)}] Új legjobb Effort: ${String.format("%.4f", bestEnergy)}")
             } else {
                 stepsSinceLastBest++
             }

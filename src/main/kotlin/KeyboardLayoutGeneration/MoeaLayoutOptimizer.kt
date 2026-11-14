@@ -341,6 +341,7 @@ fun parallelMoeaImprovement(
     evaluationsPerIsland: Int = 100000,
     populationSize: Int = 40,
     keyboardname: String = "ltsnergomini",
+    corpusFileName: String = "huszonkettoHuszonnegyeswikipediahuszonegy.txt",
     leftThumbEnabled: Boolean = false,  // Jelenleg kikapcsolva: thumb_left nem kap betűt
     rightThumbEnabled: Boolean = false  // Jelenleg kikapcsolva: thumb_right nem kap betűt
 ) = runBlocking {
@@ -352,7 +353,7 @@ fun parallelMoeaImprovement(
         return@runBlocking
     }
 
-    val corpusData = CorpusData.loadFromDataset("huszonkettoHuszonnegyeswikipediahuszonegy.txt")
+    val corpusData = CorpusData.loadFromDataset(corpusFileName)
     val positions = collectOptimizablePositions(initialLayout, leftThumbEnabled, rightThumbEnabled)
 
     println("=== MOEA FRAMEWORK (GA + PMX + TOPOLÓGIA-MUTÁCIÓK) INDÍTÁSA ===")
@@ -448,35 +449,21 @@ fun parallelMoeaImprovement(
     logDir.mkdirs()
     val logFile = File(logDir, "$runDirName.txt")
 
-    logFile.bufferedWriter().use { writer ->
-        writer.write("=== MOEA FRAMEWORK (GA + PMX + TOPOLÓGIA-MUTÁCIÓK + 2-OPT) LOG ===")
-        writer.newLine()
-        writer.write("Billentyűzet: ${initialLayout.name}")
-        writer.newLine()
-        writer.write("Futtatás időpontja: $timestamp")
-        writer.newLine()
-        writer.write("Szigetek száma: $islands | Kiértékelés/sziget: $evaluationsPerIsland | Populáció: $populationSize")
-        writer.newLine()
-        writer.write("Hüvelykujj engedélyezve: Bal=$leftThumbEnabled, Jobb=$rightThumbEnabled")
-        writer.newLine()
-        writer.write("Teljes futásidő: ${String.format("%.1f", totalTimeSeconds)} mp")
-        writer.newLine()
-        writer.newLine()
-        writer.write("--- TOP 3 EREDMÉNY ---")
-        writer.newLine()
-
-        for ((index, pair) in top3.withIndex()) {
-            val rank = index + 1
-            writer.write("$rank. Helyezett:")
-            writer.newLine()
-            writer.write(" - Effort pontszám: ${String.format("%.4f", pair.first)}")
-            writer.newLine()
-            writer.write(" - Származás: MOEA Framework GA (PMX + Topológia-mutációk + 2-opt)")
-            writer.newLine()
-            writer.newLine()
+    writeDetailedLog(
+        logFile = logFile,
+        logTitle = "MOEA FRAMEWORK (GA + PMX + TOPOLÓGIA-MUTÁCIÓK + 2-OPT) LOG",
+        keyboardName = initialLayout.name,
+        timestamp = timestamp,
+        corpusName = corpusData.datasetName,
+        algorithmDetails = listOf(
+            "Szigetek száma: $islands | Kiértékelés/sziget: $evaluationsPerIsland | Populáció: $populationSize",
+            "Hüvelykujj engedélyezve: Bal=$leftThumbEnabled, Jobb=$rightThumbEnabled"
+        ),
+        totalTimeSeconds = totalTimeSeconds,
+        topResults = top3.map { (effort, _) ->
+            effort to "MOEA Framework GA (PMX + Topológia-mutációk + 2-opt)"
         }
-    }
-    println("Log fájl elmentve: ${logFile.absolutePath}")
+    )
 
     for ((index, pair) in top3.withIndex()) {
         val rank = index + 1
