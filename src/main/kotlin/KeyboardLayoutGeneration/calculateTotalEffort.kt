@@ -443,7 +443,9 @@ private fun mutateSwapThreeKeysCycle(
  */
 fun polishLayout2Opt(
     initialLayout: CombinedLayoutData,
-    corpusData: CorpusData
+    corpusData: CorpusData,
+    leftThumbEnabled: Boolean = false,
+    rightThumbEnabled: Boolean = false
 ): CombinedLayoutData {
     val currentLayout = initialLayout.deepCopy("${initialLayout.name}_polished")
     var currentEnergy = completeLayoutAnalysis(currentLayout, corpusData, verbose = false).totalEffort
@@ -454,6 +456,15 @@ fun polishLayout2Opt(
     for (r in 0 until mainRows) {
         for (c in currentLayout.leftChars[r].indices) positions.add(Triple(true, r, c))
         for (c in currentLayout.rightChars[r].indices) positions.add(Triple(false, r, c))
+    }
+
+    // Ha engedélyezve van a bal vagy jobb hüvelykujj, felvesszük az 1 elemű thumb sor (col = 0) koordinátáját is
+    val thumbRow = currentLayout.numRows - 1
+    if (leftThumbEnabled && thumbRow in currentLayout.leftChars.indices && currentLayout.leftChars[thumbRow].isNotEmpty()) {
+        positions.add(Triple(true, thumbRow, 0))
+    }
+    if (rightThumbEnabled && thumbRow in currentLayout.rightChars.indices && currentLayout.rightChars[thumbRow].isNotEmpty()) {
+        positions.add(Triple(false, thumbRow, 0))
     }
 
     var pass = 0

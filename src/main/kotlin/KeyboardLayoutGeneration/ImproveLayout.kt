@@ -15,7 +15,8 @@ import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 
 fun main(){
-    parallelImprovement(416)
+    parallelMoeaImprovement(keyboardname = "ltsnergomini")
+    //parallelImprovement(128, "ltsnergorowstagger")
 }
 
 
