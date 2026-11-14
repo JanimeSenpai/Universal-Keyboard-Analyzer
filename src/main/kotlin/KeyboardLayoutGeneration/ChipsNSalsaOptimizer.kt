@@ -290,6 +290,7 @@ fun parallelChipsNSalsaImprovement(
     evaluationsPerRun: Int = 50000,
     useSelfTuningLam: Boolean = true, // true = SelfTuningLam (Cicirello 2021), false = ModifiedLam (Lam & Delosme 1988)
     keyboardname: String = "ltsnergomini",
+    corpusFileName: String = "huszonkettoHuszonnegyeswikipediahuszonegy.txt",
     leftThumbEnabled: Boolean = false,
     rightThumbEnabled: Boolean = false
 ) = runBlocking {
@@ -301,7 +302,7 @@ fun parallelChipsNSalsaImprovement(
         return@runBlocking
     }
 
-    val corpusData = CorpusData.loadFromDataset("huszonkettoHuszonnegyeswikipediahuszonegy.txt")
+    val corpusData = CorpusData.loadFromDataset(corpusFileName)
     val scheduleName = if (useSelfTuningLam) "SelfTuningLam" else "ModifiedLam"
 
     // A futások ~10%-a az eredeti kiosztást finomhangolja, ~90%-a Hot Shuffle-ből indul
@@ -310,7 +311,7 @@ fun parallelChipsNSalsaImprovement(
 
     println("=== CHIPS-N-SALSA ($scheduleName SA + UNDOABLE 2D MUTÁCIÓK) INDÍTÁSA ===")
     println("-> Párhuzamos futások: $runs (Eredeti: $originalRunsCount, Shuffled: $shuffledRunsCount) | Lépés/futás: $evaluationsPerRun")
-    println("-> Hüvelykujj engedélyezve: Bal=$leftThumbEnabled, Jobb=$rightThumbEnabled")
+    println("-> Korpusz: $corpusFileName | Hüvelykujj engedélyezve: Bal=$leftThumbEnabled, Jobb=$rightThumbEnabled")
     val startTime = System.currentTimeMillis()
     val completedRuns = AtomicInteger(0)
 

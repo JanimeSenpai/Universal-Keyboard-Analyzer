@@ -19,7 +19,8 @@ fun main(){
         runs = 256,
         evaluationsPerRun = 42000,
         useSelfTuningLam = true,
-        keyboardname = "ltsnergomini"
+        keyboardname = "qwertycolstag",
+        corpusFileName = "monke.txt"
     )
     //parallelMoeaImprovement(keyboardname = "ltsnergomini")
     //parallelImprovement(128, "ltsnergorowstagger")
