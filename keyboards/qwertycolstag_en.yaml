@@ -7,17 +7,17 @@ hardware:
   optimal_finger_assignment: false
   angle_of_approach_degrees: 0.0
   left:
-    offsets: [0.50, 0.50, 0.50, 0.25, 0.00, 0.25, 0.38, 0.10]
-    fingers: ["P", "P", "P", "R", "M", "I", "I", "I"]
-    anchors: [2, 2, 2, 3, 4, 5, 5, 5] #anchor is the home column of the finger that presses keys in this column
+    offsets: [ 0.50, 0.50, 0.25, 0.00, 0.25, 0.38]
+    fingers: ["P", "P", "R", "M", "I", "I"]
+    anchors: [1,1,2,3,4,4] #anchor is the home column of the finger that presses keys in this column
   right:
-    offsets: [0.10, 0.38, 0.25, 0.00, 0.25, 0.50, 0.50, 0.50]
-    fingers: ["I", "I", "I", "M", "R", "P", "P", "P"]
-    anchors: [2, 2, 2, 3, 4, 5, 5, 5]
+    offsets: [ 0.38, 0.25, 0.00, 0.25, 0.50, 0.50]
+    fingers: [ "I", "I", "M", "R", "P", "P"]
+    anchors: [1,1,2,3,4,4]
 matrix: |
-  ___ _ _ ___   ___ _ _ ___
-  __q w e rt_   _yu i o p__
-  __a s d fg_   _hj k l ___
-  __z x c vb_   _nm , . -__
+  __ _ _ __   __ _ _ __
+  _q w e rt   yu i o p_
+  _a s d fg   hj k l __
+  _z x c vb   nm , . -_
 thumb_left: "_"
 thumb_right: "_"
