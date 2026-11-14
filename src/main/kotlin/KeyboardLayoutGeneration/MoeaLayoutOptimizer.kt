@@ -182,11 +182,11 @@ fun parallelMoeaImprovement(
                 .withAlgorithm("GA")
                 .withMaxEvaluations(evaluationsPerIsland)
                 .withProperty("populationSize", populationSize)
-                // KRITIKUS: Kikapcsoljuk az alapértelmezett "insertion" operátort, mert az 1D-s
-                // beszúrásos eltolás elcsúsztatja a 2D billentyűzet-mátrix sorait és oszlopait!
-                .withProperty("operator", "pmx+swap")
-                .withProperty("pmx.rate", 0.20)  // Ritkább keresztezés, hogy ne verje szét a kialakuló völgyeket
-                .withProperty("swap.rate", 0.90) // Gyakori párcsere a lokális finomhangoláshoz
+                // Dupla "swap" lánc: 48% eséllyel 1 csere, 36% eséllyel 2 egyidejű csere (3-as ciklus / 4-es csere),
+                // így a GA ki tud törni a szigorú 2-opt lokális minimumokból is!
+                .withProperty("operator", "pmx+swap+swap")
+                .withProperty("pmx.rate", 0.30)  // Kicsit magasabb keresztezési arány az 50 fős populációhoz
+                .withProperty("swap.rate", 0.60) // Várhatóan 1.2 csere / utód (1 és 2 csere vegyesen)
                 .run()
 
             val bestSolution = resultPopulation[0]
