@@ -9,19 +9,17 @@ import java.io.File
  */
 fun saveLayoutToYaml(layout: CombinedLayoutData, originalFile: File, outputFile: File) {
     val originalLines = originalFile.readLines()
-    var thumbLeftStr = "thumb_left: \"_\""
-    var thumbRightStr = "thumb_right: \"_\""
+    val mainRows = layout.numRows - 1
+    val thumbRowIdx = layout.numRows - 1
+
+    // Közvetlenül a CombinedLayoutData utolsó (1 elemű) sorából olvassuk ki a thumb karaktereket
+    val leftThumbChar = layout.leftChars.getOrNull(thumbRowIdx)?.firstOrNull() ?: '_'
+    val rightThumbChar = layout.rightChars.getOrNull(thumbRowIdx)?.firstOrNull() ?: '_'
 
     outputFile.bufferedWriter().use { writer ->
         // Kimásoljuk az eredeti fájl tetejét a mátrixig
         for (line in originalLines) {
-            // Eltároljuk az eredeti thumb értékeket, hátha kellenek (ha a kódod nem mutálja őket)
-            if (line.trim().startsWith("thumb_left:")) {
-                thumbLeftStr = line
-                continue
-            }
-            if (line.trim().startsWith("thumb_right:")) {
-                thumbRightStr = line
+            if (line.trim().startsWith("thumb_left:") || line.trim().startsWith("thumb_right:")) {
                 continue
             }
             if (line.trim().startsWith("matrix:")) {
@@ -31,8 +29,8 @@ fun saveLayoutToYaml(layout: CombinedLayoutData, originalFile: File, outputFile:
             writer.write(line + "\n")
         }
 
-        // Beillesztjük az optimalizált mátrixot
-        for (r in 0 until layout.leftChars.size) {
+        // Beillesztjük az optimalizált fő mátrixot (a thumb sor kihagyásával)
+        for (r in 0 until mainRows) {
             writer.write("  ")
             // Egy kis szóközös formázás, hogy vizuálisan szép maradjon a YAML
             writer.write(layout.leftChars[r].joinToString(" "))
@@ -41,11 +39,17 @@ fun saveLayoutToYaml(layout: CombinedLayoutData, originalFile: File, outputFile:
             writer.write("\n")
         }
 
-        // Visszaírjuk a thumb karaktereket
-        // Megjegyzés: Ha a kódod menet közben mutálja a hüvelykujjat is,
-        // és eltárolja mondjuk a layout.thumbLeft változóban, akkor ezt cseréld le erre:
-        // writer.write("thumb_left: \"${layout.thumbLeft}\"\n")
-        writer.write(thumbLeftStr + "\n")
-        writer.write(thumbRightStr + "\n")
+        // Visszaírjuk a thumb karaktereket a CombinedLayoutData aktuális állapota alapján
+        writer.write("thumb_left: \"${escapeYamlChar(leftThumbChar)}\"\n")
+        writer.write("thumb_right: \"${escapeYamlChar(rightThumbChar)}\"\n")
     }
+}
+
+/**
+ * Biztosítja, hogy idézőjel (") vagy backslash (\) karakter esetén se törjön el a YAML szintaxis.
+ */
+private fun escapeYamlChar(ch: Char): String = when (ch) {
+    '"' -> "\\\""
+    '\\' -> "\\\\"
+    else -> ch.toString()
 }
