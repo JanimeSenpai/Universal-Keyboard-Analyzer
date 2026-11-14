@@ -412,6 +412,8 @@ fun parallelChipsNSalsaImprovement(
         writer.newLine()
         writer.write("Teljes futásidő: ${String.format("%.1f", totalTimeSeconds)} mp")
         writer.newLine()
+        writer.write("Korpusz neve: ${corpusData.datasetName}")
+        writer.newLine()
         writer.newLine()
         writer.write("--- TOP 3 EREDMÉNY ---")
         writer.newLine()
