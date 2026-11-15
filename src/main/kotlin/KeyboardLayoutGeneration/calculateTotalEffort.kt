@@ -46,7 +46,7 @@ var weightRow4 = 0.0
 var weightRow5 = 0.0 // Thumb row
 
 // --- 2. JUTALMAZÓ SÚLYOK (Maximalizálandó értékek -> csökkentik a Total Effortot) ---
-var weightHomeRow = 0.86
+var weightHomeRow = 0.85
 
 // Cél: minél magasabb, együttesen > 40-50%
 var weightAlternation = 1.0
@@ -71,7 +71,7 @@ fun resetDefaultWeights() {
     weightRow3 = 0.0
     weightRow4 = 0.0
     weightRow5 = 0.0
-    weightHomeRow = 0.86
+    weightHomeRow = 0.85
     weightAlternation = 1.0
     weightRoll = 1.3
     weightThreeRoll = 1.6

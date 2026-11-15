@@ -19,6 +19,8 @@ import androidx.compose.ui.input.pointer.PointerIcon
 import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.LayoutCoordinates
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -583,19 +585,30 @@ fun HeatmapViewerCard(
             }
         }
 
-        // Alsó magasság-átméretező sáv (megragadható és húzható)
+        // Alsó magasság-átméretező sáv (ablak-koordinátában követi az egeret 1:1 arányban)
+        var handleCoords by remember { mutableStateOf<LayoutCoordinates?>(null) }
+        var dragStartWindowY by remember { mutableStateOf(0f) }
+        var dragStartHeight by remember { mutableStateOf(viewerHeight) }
         Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(16.dp)
+                .onGloballyPositioned { handleCoords = it }
                 .pointerHoverIcon(PointerIcon(Cursor.getPredefinedCursor(Cursor.S_RESIZE_CURSOR)))
                 .pointerInput(density) {
-                    detectVerticalDragGestures { change, dragAmount ->
-                        change.consume()
-                        with(density) {
-                            viewerHeight = (viewerHeight + dragAmount.toDp()).coerceIn(180.dp, 950.dp)
+                    detectVerticalDragGestures(
+                        onDragStart = { startOffset ->
+                            dragStartWindowY = handleCoords?.localToWindow(startOffset)?.y ?: startOffset.y
+                            dragStartHeight = viewerHeight
+                        },
+                        onVerticalDrag = { change, _ ->
+                            change.consume()
+                            val currentWindowY = handleCoords?.localToWindow(change.position)?.y
+                                ?: return@detectVerticalDragGestures
+                            val deltaDp = ((currentWindowY - dragStartWindowY) / density.density).dp
+                            viewerHeight = (dragStartHeight + deltaDp).coerceIn(180.dp, 950.dp)
                         }
-                    }
+                    )
                 },
             contentAlignment = Alignment.Center
         ) {

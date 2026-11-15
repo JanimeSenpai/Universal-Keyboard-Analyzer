@@ -5,6 +5,9 @@ import androidx.compose.animation.Crossfade
 import androidx.compose.foundation.*
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.window.WindowDraggableArea
 import androidx.compose.material.icons.Icons
@@ -18,15 +21,18 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.PointerIcon
 import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.LayoutCoordinates
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.*
-import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.awt.Cursor
@@ -77,6 +83,83 @@ private enum class MainTab(
     fun shortTitle(lang: AppLanguage): String = lang.pick(shortTitleHu, shortTitleEn)
 }
 
+/**
+ * Szálbiztos, kötegelt (batched) konzol-puffer.
+ * A háttérszálak (System.out / System.err) nem közvetlenül a Compose State-et módosítják minden egyes
+ * println híváskor, hanem egy memóriabeli StringBuilder-be írnak, amit a UI 40 ms-onként egyszerre olvas ki,
+ * és soronként LazyColumn-ban jelenít meg.
+ */
+private class ConsoleLogBuffer {
+    private val lock = Any()
+    private val pending = StringBuilder()
+
+    @Volatile
+    private var hasPending: Boolean = false
+
+    val lines = mutableStateListOf("=== Universal Keyboard Analyzer — Live Console ===")
+    var incompleteTail by mutableStateOf("")
+        private set
+    var flushTick by mutableStateOf(0)
+        private set
+
+    fun appendFromStream(text: String) {
+        val cleaned = text
+            .replace("\r\n", "\n")
+            .replace('\r', '\n')
+            .replace("\t", "    ")
+        synchronized(lock) {
+            pending.append(cleaned)
+            hasPending = true
+        }
+    }
+
+    fun flushPendingToUi(maxLines: Int = 1500) {
+        if (!hasPending) return
+        val chunk: String
+        synchronized(lock) {
+            if (pending.isEmpty()) {
+                hasPending = false
+                return
+            }
+            chunk = pending.toString()
+            pending.setLength(0)
+            hasPending = false
+        }
+
+        val combined = incompleteTail + chunk
+        val parts = combined.split('\n')
+        if (combined.endsWith('\n')) {
+            incompleteTail = ""
+            val completed = parts.dropLast(1)
+            if (completed.isNotEmpty()) {
+                lines.addAll(completed)
+            }
+        } else {
+            incompleteTail = parts.last()
+            val completed = parts.dropLast(1)
+            if (completed.isNotEmpty()) {
+                lines.addAll(completed)
+            }
+        }
+
+        val excess = lines.size - maxLines
+        if (excess > 0) {
+            lines.removeRange(0, excess)
+        }
+        flushTick++
+    }
+
+    fun clear() {
+        synchronized(lock) {
+            pending.setLength(0)
+            hasPending = false
+        }
+        incompleteTail = ""
+        lines.clear()
+        flushTick++
+    }
+}
+
 private fun isWindowsAppsDarkTheme(): Boolean? {
     val osName = System.getProperty("os.name")?.lowercase() ?: return null
     if (!osName.contains("win")) return null
@@ -118,29 +201,14 @@ fun FrameWindowScope.ComposeAppRoot(
     var statusMessageEn by remember { mutableStateOf("Ready.") }
     var consoleExpanded by remember { mutableStateOf(true) }
     var consoleHeight by remember { mutableStateOf(195.dp) }
-    var consoleText by remember { mutableStateOf("=== Universal Keyboard Analyzer — Live Console ===\n") }
 
+    val consoleBuffer = remember { ConsoleLogBuffer() }
     val coroutineScope = rememberCoroutineScope()
-    val consoleScrollState = rememberScrollState()
-    val density = LocalDensity.current
 
-    // System.out / System.err átirányítás a Compose konzolba és az eredeti terminálba
-    DisposableEffect(Unit) {
+    // System.out / System.err átirányítás a kötegelt konzol-pufferbe és az eredeti terminálba
+    DisposableEffect(consoleBuffer) {
         val origOut = System.out
         val origErr = System.err
-        val lock = Any()
-
-        fun appendChunk(chunk: String) {
-            val cleanChunk = chunk.replace("\t", "    ")
-            synchronized(lock) {
-                val combined = consoleText + cleanChunk
-                consoleText = if (combined.length > 90_000) {
-                    combined.takeLast(75_000)
-                } else {
-                    combined
-                }
-            }
-        }
 
         val teeOut = object : OutputStream() {
             private val buffer = ByteArrayOutputStream()
@@ -148,7 +216,7 @@ fun FrameWindowScope.ComposeAppRoot(
                 origOut.write(b)
                 synchronized(buffer) {
                     buffer.write(b)
-                    if (b == '\n'.code) flushBuffer()
+                    if (b == '\n'.code || buffer.size() >= 4096) flushBuffer()
                 }
             }
 
@@ -160,11 +228,18 @@ fun FrameWindowScope.ComposeAppRoot(
                 }
             }
 
+            override fun flush() {
+                origOut.flush()
+                synchronized(buffer) {
+                    flushBuffer()
+                }
+            }
+
             private fun flushBuffer() {
                 if (buffer.size() == 0) return
                 val text = buffer.toString(StandardCharsets.UTF_8.name())
                 buffer.reset()
-                appendChunk(text)
+                consoleBuffer.appendFromStream(text)
             }
         }
 
@@ -177,8 +252,12 @@ fun FrameWindowScope.ComposeAppRoot(
         }
     }
 
-    LaunchedEffect(consoleText.length) {
-        consoleScrollState.scrollTo(consoleScrollState.maxValue)
+    // 40 ms-onként kötegelve frissítjük a konzol sorait (nem vált ki újrarajzolást a ComposeAppRoot-ban)
+    LaunchedEffect(consoleBuffer) {
+        while (true) {
+            delay(40L)
+            consoleBuffer.flushPendingToUi()
+        }
     }
 
     val runBackgroundTask: (String, suspend () -> Unit) -> Unit = { taskName, block ->
@@ -498,144 +577,201 @@ fun FrameWindowScope.ComposeAppRoot(
 
                     // Összecsukható és függőlegesen méretezhető élő konzol alul
                     AnimatedVisibility(visible = consoleExpanded) {
-                        val consoleBg = if (darkTheme) Color(0xFF0F172A) else Color(0xFFF8FAFC)
-                        val consoleHeaderBg = if (darkTheme) Color(0xFF1E293B) else Color(0xFFE2E8F0)
-                        val consoleTextColor = if (darkTheme) Color(0xFFE2E8F0) else Color(0xFF0F172A)
-                        val consoleHeaderTitleColor = if (darkTheme) Color(0xFFE2E8F0) else Color(0xFF1E293B)
-                        val consoleIconTint = if (darkTheme) Color(0xFF38BDF8) else Color(0xFF0284C7)
-                        val consoleActionTint = if (darkTheme) Color(0xFF94A3B8) else Color(0xFF475569)
+                        LiveConsolePanel(
+                            consoleBuffer = consoleBuffer,
+                            darkTheme = darkTheme,
+                            consoleHeight = consoleHeight,
+                            onHeightChange = { consoleHeight = it },
+                            onHide = { consoleExpanded = false }
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
 
-                        Surface(
-                            color = consoleBg,
-                            contentColor = consoleTextColor,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(consoleHeight)
-                        ) {
-                            Column(modifier = Modifier.fillMaxSize()) {
-                                // Felső átméretező sáv + fejléc (megragadva húzható fel/le)
-                                Column(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .background(consoleHeaderBg)
-                                        .pointerHoverIcon(PointerIcon(Cursor.getPredefinedCursor(Cursor.N_RESIZE_CURSOR)))
-                                        .pointerInput(density) {
-                                            detectVerticalDragGestures { change, dragAmount ->
-                                                change.consume()
-                                                val deltaDp = (dragAmount / density.density).dp
-                                                consoleHeight = (consoleHeight - deltaDp).coerceIn(100.dp, 650.dp)
-                                            }
-                                        }
-                                ) {
-                                    HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.4f))
-                                    // Vizuális fogantyú (pill) a felső szélen
-                                    Box(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .padding(top = 4.dp),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        Surface(
-                                            shape = RoundedCornerShape(50),
-                                            color = consoleActionTint.copy(alpha = 0.45f),
-                                            modifier = Modifier.size(width = 42.dp, height = 3.dp)
-                                        ) {}
-                                    }
-                                    Row(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .padding(horizontal = 14.dp, vertical = 4.dp),
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.SpaceBetween
-                                    ) {
-                                        Row(verticalAlignment = Alignment.CenterVertically) {
-                                            Icon(
-                                                imageVector = Icons.Default.Terminal,
-                                                contentDescription = null,
-                                                tint = consoleIconTint,
-                                                modifier = Modifier.size(16.dp)
-                                            )
-                                            Spacer(Modifier.width(8.dp))
-                                            Text(
-                                                text = tr("Élő Konzol Kimenet (System.out / System.err)", "Live Console Output (System.out / System.err)"),
-                                                style = MaterialTheme.typography.labelMedium.copy(
-                                                    fontWeight = FontWeight.Bold,
-                                                    color = consoleHeaderTitleColor
-                                                )
-                                            )
-                                        }
-                                        Row(
-                                            verticalAlignment = Alignment.CenterVertically,
-                                            horizontalArrangement = Arrangement.spacedBy(4.dp)
-                                        ) {
-                                            TextButton(
-                                                onClick = { consoleExpanded = false },
-                                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
-                                                modifier = Modifier
-                                                    .height(26.dp)
-                                                    .pointerHoverIcon(PointerIcon(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR)))
-                                            ) {
-                                                Icon(
-                                                    imageVector = Icons.Default.ExpandMore,
-                                                    contentDescription = null,
-                                                    tint = consoleActionTint,
-                                                    modifier = Modifier.size(15.dp)
-                                                )
-                                                Spacer(Modifier.width(4.dp))
-                                                Text(tr("Konzol elrejtése", "Hide Console"), fontSize = 11.sp, color = consoleActionTint)
-                                            }
-                                            TextButton(
-                                                onClick = { consoleText = "" },
-                                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
-                                                modifier = Modifier
-                                                    .height(26.dp)
-                                                    .pointerHoverIcon(PointerIcon(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR)))
-                                            ) {
-                                                Icon(
-                                                    imageVector = Icons.Default.DeleteSweep,
-                                                    contentDescription = null,
-                                                    tint = consoleActionTint,
-                                                    modifier = Modifier.size(15.dp)
-                                                )
-                                                Spacer(Modifier.width(4.dp))
-                                                Text(tr("Törlés", "Clear"), fontSize = 11.sp, color = consoleActionTint)
-                                            }
-                                        }
-                                    }
-                                }
+@Composable
+private fun LiveConsolePanel(
+    consoleBuffer: ConsoleLogBuffer,
+    darkTheme: Boolean,
+    consoleHeight: Dp,
+    onHeightChange: (Dp) -> Unit,
+    onHide: () -> Unit
+) {
+    val density = LocalDensity.current
+    val currentHeight by rememberUpdatedState(consoleHeight)
+    val currentOnHeightChange by rememberUpdatedState(onHeightChange)
+    var headerCoords by remember { mutableStateOf<LayoutCoordinates?>(null) }
+    var dragStartWindowY by remember { mutableStateOf(0f) }
+    var dragStartHeight by remember { mutableStateOf(consoleHeight) }
+    val consoleListState = rememberLazyListState()
 
-                                // Konzol szövegterület jobb oldali scrollbarral
-                                Box(modifier = Modifier.fillMaxSize()) {
-                                    Box(
-                                        modifier = Modifier
-                                            .fillMaxSize()
-                                            .padding(start = 14.dp, end = 22.dp, top = 8.dp, bottom = 8.dp)
-                                            .verticalScroll(consoleScrollState)
-                                    ) {
-                                        Text(
-                                            text = consoleText,
-                                            fontFamily = FontFamily.Monospace,
-                                            fontSize = 12.sp,
-                                            lineHeight = 17.sp,
-                                            color = consoleTextColor
-                                        )
-                                    }
-                                    VerticalScrollbar(
-                                        adapter = rememberScrollbarAdapter(consoleScrollState),
-                                        style = LocalScrollbarStyle.current.copy(
-                                            unhoverColor = consoleTextColor.copy(alpha = 0.28f),
-                                            hoverColor = consoleIconTint.copy(alpha = 0.75f)
-                                        ),
-                                        modifier = Modifier
-                                            .align(Alignment.CenterEnd)
-                                            .fillMaxHeight()
-                                            .padding(end = 4.dp, top = 4.dp, bottom = 4.dp)
-                                    )
-                                }
+    val consoleBg = if (darkTheme) Color(0xFF0F172A) else Color(0xFFF8FAFC)
+    val consoleHeaderBg = if (darkTheme) Color(0xFF1E293B) else Color(0xFFE2E8F0)
+    val consoleTextColor = if (darkTheme) Color(0xFFE2E8F0) else Color(0xFF0F172A)
+    val consoleHeaderTitleColor = if (darkTheme) Color(0xFFE2E8F0) else Color(0xFF1E293B)
+    val consoleIconTint = if (darkTheme) Color(0xFF38BDF8) else Color(0xFF0284C7)
+    val consoleActionTint = if (darkTheme) Color(0xFF94A3B8) else Color(0xFF475569)
+
+    val lines = consoleBuffer.lines
+    val tail = consoleBuffer.incompleteTail
+    val hasTail = tail.isNotEmpty()
+    val totalItems = lines.size + if (hasTail) 1 else 0
+
+    LaunchedEffect(consoleBuffer.flushTick) {
+        if (totalItems > 0) {
+            consoleListState.scrollToItem(totalItems - 1)
+        }
+    }
+
+    Surface(
+        color = consoleBg,
+        contentColor = consoleTextColor,
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(consoleHeight)
+    ) {
+        Column(modifier = Modifier.fillMaxSize()) {
+            // Felső átméretező sáv + fejléc (ablak-koordinátában követi az egeret 1:1 arányban)
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(consoleHeaderBg)
+                    .onGloballyPositioned { headerCoords = it }
+                    .pointerHoverIcon(PointerIcon(Cursor.getPredefinedCursor(Cursor.N_RESIZE_CURSOR)))
+                    .pointerInput(density) {
+                        detectVerticalDragGestures(
+                            onDragStart = { startOffset ->
+                                dragStartWindowY = headerCoords?.localToWindow(startOffset)?.y ?: startOffset.y
+                                dragStartHeight = currentHeight
+                            },
+                            onVerticalDrag = { change, _ ->
+                                change.consume()
+                                val currentWindowY = headerCoords?.localToWindow(change.position)?.y
+                                    ?: return@detectVerticalDragGestures
+                                val deltaDp = ((dragStartWindowY - currentWindowY) / density.density).dp
+                                currentOnHeightChange((dragStartHeight + deltaDp).coerceIn(100.dp, 650.dp))
                             }
+                        )
+                    }
+            ) {
+                HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.4f))
+                // Vizuális fogantyú (pill) a felső szélen
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 4.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Surface(
+                        shape = RoundedCornerShape(50),
+                        color = consoleActionTint.copy(alpha = 0.45f),
+                        modifier = Modifier.size(width = 42.dp, height = 3.dp)
+                    ) {}
+                }
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 14.dp, vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.Default.Terminal,
+                            contentDescription = null,
+                            tint = consoleIconTint,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Text(
+                            text = tr("Élő Konzol Kimenet (System.out / System.err)", "Live Console Output (System.out / System.err)"),
+                            style = MaterialTheme.typography.labelMedium.copy(
+                                fontWeight = FontWeight.Bold,
+                                color = consoleHeaderTitleColor
+                            )
+                        )
+                    }
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        TextButton(
+                            onClick = onHide,
+                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
+                            modifier = Modifier
+                                .height(26.dp)
+                                .pointerHoverIcon(PointerIcon(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR)))
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.ExpandMore,
+                                contentDescription = null,
+                                tint = consoleActionTint,
+                                modifier = Modifier.size(15.dp)
+                            )
+                            Spacer(Modifier.width(4.dp))
+                            Text(tr("Konzol elrejtése", "Hide Console"), fontSize = 11.sp, color = consoleActionTint)
+                        }
+                        TextButton(
+                            onClick = { consoleBuffer.clear() },
+                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
+                            modifier = Modifier
+                                .height(26.dp)
+                                .pointerHoverIcon(PointerIcon(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR)))
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.DeleteSweep,
+                                contentDescription = null,
+                                tint = consoleActionTint,
+                                modifier = Modifier.size(15.dp)
+                            )
+                            Spacer(Modifier.width(4.dp))
+                            Text(tr("Törlés", "Clear"), fontSize = 11.sp, color = consoleActionTint)
                         }
                     }
                 }
+            }
+
+            // Konzol szövegterület LazyColumn-nal (csak a látható sorokat rendereli) + jobb oldali scrollbar
+            Box(modifier = Modifier.fillMaxSize()) {
+                LazyColumn(
+                    state = consoleListState,
+                    contentPadding = PaddingValues(start = 14.dp, end = 22.dp, top = 6.dp, bottom = 6.dp),
+                    modifier = Modifier.fillMaxSize()
+                ) {
+                    itemsIndexed(lines) { _, line ->
+                        Text(
+                            text = line.ifEmpty { " " },
+                            fontFamily = FontFamily.Monospace,
+                            fontSize = 12.sp,
+                            lineHeight = 16.sp,
+                            color = consoleTextColor
+                        )
+                    }
+                    if (hasTail) {
+                        item(key = "incomplete_tail") {
+                            Text(
+                                text = tail,
+                                fontFamily = FontFamily.Monospace,
+                                fontSize = 12.sp,
+                                lineHeight = 16.sp,
+                                color = consoleTextColor
+                            )
+                        }
+                    }
+                }
+                VerticalScrollbar(
+                    adapter = rememberScrollbarAdapter(consoleListState),
+                    style = LocalScrollbarStyle.current.copy(
+                        unhoverColor = consoleTextColor.copy(alpha = 0.28f),
+                        hoverColor = consoleIconTint.copy(alpha = 0.75f)
+                    ),
+                    modifier = Modifier
+                        .align(Alignment.CenterEnd)
+                        .fillMaxHeight()
+                        .padding(end = 4.dp, top = 4.dp, bottom = 4.dp)
+                )
             }
         }
     }
