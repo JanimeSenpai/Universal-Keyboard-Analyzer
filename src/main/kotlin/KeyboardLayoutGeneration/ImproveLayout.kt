@@ -14,13 +14,18 @@ import java.io.File
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 
+
+var ltsn = Pair("ltsnergomini","huszonkettoHuszonnegyeswikipediahuszonegy.txt")
+var qwertyenglish= Pair("qwertycolstag_en","monke.txt")
+
 fun main(){
+
     parallelChipsNSalsaImprovement(
-        runs = 256,
+        runs = 128,
         evaluationsPerRun = 50000,
         useSelfTuningLam = true,
-        keyboardname = "ltsnergomini",
-        corpusFileName = "huszonkettoHuszonnegyeswikipediahuszonegy.txt"
+        keyboardname = ltsn.first,
+        corpusFileName = ltsn.second,
     )
     //parallelMoeaImprovement(keyboardname = "ltsnergomini")
     //parallelImprovement(128, "ltsnergorowstagger")
