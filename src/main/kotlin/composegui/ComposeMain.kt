@@ -3,6 +3,7 @@ package composegui
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.Crossfade
 import androidx.compose.foundation.*
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.window.WindowDraggableArea
@@ -14,6 +15,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.pointer.PointerIcon
+import androidx.compose.ui.input.pointer.pointerHoverIcon
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.DpSize
@@ -24,6 +29,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.awt.Cursor
 import java.io.ByteArrayOutputStream
 import java.io.OutputStream
 import java.io.PrintStream
@@ -111,10 +117,12 @@ fun FrameWindowScope.ComposeAppRoot(
     var statusMessageHu by remember { mutableStateOf("Kész.") }
     var statusMessageEn by remember { mutableStateOf("Ready.") }
     var consoleExpanded by remember { mutableStateOf(true) }
+    var consoleHeight by remember { mutableStateOf(195.dp) }
     var consoleText by remember { mutableStateOf("=== Universal Keyboard Analyzer — Live Console ===\n") }
 
     val coroutineScope = rememberCoroutineScope()
     val consoleScrollState = rememberScrollState()
+    val density = LocalDensity.current
 
     // System.out / System.err átirányítás a Compose konzolba és az eredeti terminálba
     DisposableEffect(Unit) {
@@ -488,7 +496,7 @@ fun FrameWindowScope.ComposeAppRoot(
                         }
                     }
 
-                    // Összecsukható élő konzol alul
+                    // Összecsukható és függőlegesen méretezhető élő konzol alul
                     AnimatedVisibility(visible = consoleExpanded) {
                         val consoleBg = if (darkTheme) Color(0xFF0F172A) else Color(0xFFF8FAFC)
                         val consoleHeaderBg = if (darkTheme) Color(0xFF1E293B) else Color(0xFFE2E8F0)
@@ -502,80 +510,126 @@ fun FrameWindowScope.ComposeAppRoot(
                             contentColor = consoleTextColor,
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .height(195.dp)
+                                .height(consoleHeight)
                         ) {
                             Column(modifier = Modifier.fillMaxSize()) {
-                                HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.35f))
-                                Row(
+                                // Felső átméretező sáv + fejléc (megragadva húzható fel/le)
+                                Column(
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .background(consoleHeaderBg)
-                                        .padding(horizontal = 14.dp, vertical = 6.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.SpaceBetween
+                                        .pointerHoverIcon(PointerIcon(Cursor.getPredefinedCursor(Cursor.N_RESIZE_CURSOR)))
+                                        .pointerInput(density) {
+                                            detectVerticalDragGestures { change, dragAmount ->
+                                                change.consume()
+                                                val deltaDp = (dragAmount / density.density).dp
+                                                consoleHeight = (consoleHeight - deltaDp).coerceIn(100.dp, 650.dp)
+                                            }
+                                        }
                                 ) {
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                        Icon(
-                                            imageVector = Icons.Default.Terminal,
-                                            contentDescription = null,
-                                            tint = consoleIconTint,
-                                            modifier = Modifier.size(16.dp)
-                                        )
-                                        Spacer(Modifier.width(8.dp))
-                                        Text(
-                                            text = tr("Élő Konzol Kimenet (System.out / System.err)", "Live Console Output (System.out / System.err)"),
-                                            style = MaterialTheme.typography.labelMedium.copy(
-                                                fontWeight = FontWeight.Bold,
-                                                color = consoleHeaderTitleColor
-                                            )
-                                        )
+                                    HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.4f))
+                                    // Vizuális fogantyú (pill) a felső szélen
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(top = 4.dp),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Surface(
+                                            shape = RoundedCornerShape(50),
+                                            color = consoleActionTint.copy(alpha = 0.45f),
+                                            modifier = Modifier.size(width = 42.dp, height = 3.dp)
+                                        ) {}
                                     }
                                     Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(horizontal = 14.dp, vertical = 4.dp),
                                         verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                        horizontalArrangement = Arrangement.SpaceBetween
                                     ) {
-                                        TextButton(
-                                            onClick = { consoleExpanded = false },
-                                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
-                                            modifier = Modifier.height(26.dp)
-                                        ) {
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
                                             Icon(
-                                                imageVector = Icons.Default.ExpandMore,
+                                                imageVector = Icons.Default.Terminal,
                                                 contentDescription = null,
-                                                tint = consoleActionTint,
-                                                modifier = Modifier.size(15.dp)
+                                                tint = consoleIconTint,
+                                                modifier = Modifier.size(16.dp)
                                             )
-                                            Spacer(Modifier.width(4.dp))
-                                            Text(tr("Konzol elrejtése", "Hide Console"), fontSize = 11.sp, color = consoleActionTint)
+                                            Spacer(Modifier.width(8.dp))
+                                            Text(
+                                                text = tr("Élő Konzol Kimenet (System.out / System.err)", "Live Console Output (System.out / System.err)"),
+                                                style = MaterialTheme.typography.labelMedium.copy(
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = consoleHeaderTitleColor
+                                                )
+                                            )
                                         }
-                                        TextButton(
-                                            onClick = { consoleText = "" },
-                                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
-                                            modifier = Modifier.height(26.dp)
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(4.dp)
                                         ) {
-                                            Icon(
-                                                imageVector = Icons.Default.DeleteSweep,
-                                                contentDescription = null,
-                                                tint = consoleActionTint,
-                                                modifier = Modifier.size(15.dp)
-                                            )
-                                            Spacer(Modifier.width(4.dp))
-                                            Text(tr("Törlés", "Clear"), fontSize = 11.sp, color = consoleActionTint)
+                                            TextButton(
+                                                onClick = { consoleExpanded = false },
+                                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
+                                                modifier = Modifier
+                                                    .height(26.dp)
+                                                    .pointerHoverIcon(PointerIcon(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR)))
+                                            ) {
+                                                Icon(
+                                                    imageVector = Icons.Default.ExpandMore,
+                                                    contentDescription = null,
+                                                    tint = consoleActionTint,
+                                                    modifier = Modifier.size(15.dp)
+                                                )
+                                                Spacer(Modifier.width(4.dp))
+                                                Text(tr("Konzol elrejtése", "Hide Console"), fontSize = 11.sp, color = consoleActionTint)
+                                            }
+                                            TextButton(
+                                                onClick = { consoleText = "" },
+                                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
+                                                modifier = Modifier
+                                                    .height(26.dp)
+                                                    .pointerHoverIcon(PointerIcon(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR)))
+                                            ) {
+                                                Icon(
+                                                    imageVector = Icons.Default.DeleteSweep,
+                                                    contentDescription = null,
+                                                    tint = consoleActionTint,
+                                                    modifier = Modifier.size(15.dp)
+                                                )
+                                                Spacer(Modifier.width(4.dp))
+                                                Text(tr("Törlés", "Clear"), fontSize = 11.sp, color = consoleActionTint)
+                                            }
                                         }
                                     }
                                 }
-                                Box(
-                                    modifier = Modifier
-                                        .fillMaxSize()
-                                        .padding(horizontal = 14.dp, vertical = 8.dp)
-                                        .verticalScroll(consoleScrollState)
-                                ) {
-                                    Text(
-                                        text = consoleText,
-                                        fontFamily = FontFamily.Monospace,
-                                        fontSize = 12.sp,
-                                        lineHeight = 17.sp,
-                                        color = consoleTextColor
+
+                                // Konzol szövegterület jobb oldali scrollbarral
+                                Box(modifier = Modifier.fillMaxSize()) {
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxSize()
+                                            .padding(start = 14.dp, end = 22.dp, top = 8.dp, bottom = 8.dp)
+                                            .verticalScroll(consoleScrollState)
+                                    ) {
+                                        Text(
+                                            text = consoleText,
+                                            fontFamily = FontFamily.Monospace,
+                                            fontSize = 12.sp,
+                                            lineHeight = 17.sp,
+                                            color = consoleTextColor
+                                        )
+                                    }
+                                    VerticalScrollbar(
+                                        adapter = rememberScrollbarAdapter(consoleScrollState),
+                                        style = LocalScrollbarStyle.current.copy(
+                                            unhoverColor = consoleTextColor.copy(alpha = 0.28f),
+                                            hoverColor = consoleIconTint.copy(alpha = 0.75f)
+                                        ),
+                                        modifier = Modifier
+                                            .align(Alignment.CenterEnd)
+                                            .fillMaxHeight()
+                                            .padding(end = 4.dp, top = 4.dp, bottom = 4.dp)
                                     )
                                 }
                             }
