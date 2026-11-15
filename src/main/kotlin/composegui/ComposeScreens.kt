@@ -7,6 +7,7 @@ import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -49,18 +50,47 @@ fun CorpusAnalyzerScreen(
 
     var resultFiles by remember { mutableStateOf<List<String>>(emptyList()) }
     var selectedResultFile by remember { mutableStateOf<String?>(null) }
+    var tableViewMode by remember { mutableStateOf(true) }
+    var parsedTableRows by remember { mutableStateOf<List<List<String>>>(emptyList()) }
     var previewContent by remember {
         mutableStateOf("Válassz egy korpuszt és futtass egy elemzést, vagy válaszd ki a már elkészült statisztikai fájlokat.")
+    }
+
+    fun formatTabSeparatedLines(rawLines: List<String>): String {
+        val splitLines = rawLines.map { it.split('\t') }
+        val maxCols = splitLines.maxOfOrNull { it.size } ?: 1
+        if (maxCols <= 1) {
+            return rawLines.joinToString("\n") { it.replace("\t", "    ") }
+        }
+        val colWidths = IntArray(maxCols) { col ->
+            splitLines.maxOfOrNull { row -> row.getOrNull(col)?.length ?: 0 }?.coerceIn(4, 36) ?: 8
+        }
+        return splitLines.joinToString("\n") { row ->
+            if (row.size <= 1) {
+                row.firstOrNull()?.replace("\t", "    ") ?: ""
+            } else {
+                row.mapIndexed { idx, cell ->
+                    if (idx == row.lastIndex) cell else cell.padEnd(colWidths[idx] + 4, ' ')
+                }.joinToString("")
+            }
+        }
     }
 
     fun loadResultFileText(corpus: String, fileName: String) {
         val f = File("analysis_results/$corpus/$fileName")
         if (f.exists() && f.isFile) {
-            previewContent = runCatching {
-                f.useLines(StandardCharsets.UTF_8) { lines ->
-                    lines.take(1000).joinToString("\n")
+            runCatching {
+                val rawLines = f.useLines(StandardCharsets.UTF_8) { lines ->
+                    lines.take(1000).toList()
                 }
-            }.getOrElse { "Hiba a fájl olvasásakor: ${it.message}" }
+                parsedTableRows = rawLines
+                    .filter { it.isNotBlank() }
+                    .map { line -> line.split('\t').map { it.trim() } }
+                previewContent = formatTabSeparatedLines(rawLines)
+            }.onFailure {
+                parsedTableRows = emptyList()
+                previewContent = "Hiba a fájl olvasásakor: ${it.message}"
+            }
         }
     }
 
@@ -68,6 +98,7 @@ fun CorpusAnalyzerScreen(
         if (corpus == null) {
             resultFiles = emptyList()
             selectedResultFile = null
+            parsedTableRows = emptyList()
             return
         }
         val dir = File("analysis_results/$corpus")
@@ -87,6 +118,7 @@ fun CorpusAnalyzerScreen(
         if (chosen != null) {
             loadResultFileText(corpus, chosen)
         } else {
+            parsedTableRows = emptyList()
             previewContent = "Az 'analysis_results/$corpus' mappa még nem tartalmaz elemzési fájlokat.\nFuttasd az Összes Korpusz Elemzést vagy valamelyik egyedi modult!"
         }
     }
@@ -292,14 +324,29 @@ fun CorpusAnalyzerScreen(
             subtitle = selectedCorpus?.let { "Mappa: analysis_results/$it" } ?: "Válassz egy korpuszt",
             modifier = Modifier.weight(1f).fillMaxHeight(),
             headerTrailing = {
-                OutlinedButton(
-                    onClick = { refreshResultFilesFor(selectedCorpus) },
-                    modifier = Modifier.height(32.dp),
-                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)
-                ) {
-                    Icon(Icons.Default.Visibility, contentDescription = null, modifier = Modifier.size(16.dp))
-                    Spacer(Modifier.width(6.dp))
-                    Text("Frissítés", fontSize = 12.sp)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FilterChip(
+                        selected = tableViewMode,
+                        onClick = { tableViewMode = !tableViewMode },
+                        label = { Text(if (tableViewMode) "Táblázat nézet" else "Szöveges nézet", fontSize = 12.sp) },
+                        leadingIcon = {
+                            Icon(
+                                imageVector = if (tableViewMode) Icons.Default.TableRows else Icons.Default.Notes,
+                                contentDescription = null,
+                                modifier = Modifier.size(16.dp)
+                            )
+                        },
+                        modifier = Modifier.height(32.dp)
+                    )
+                    OutlinedButton(
+                        onClick = { refreshResultFilesFor(selectedCorpus) },
+                        modifier = Modifier.height(32.dp),
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)
+                    ) {
+                        Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(Modifier.width(6.dp))
+                        Text("Frissítés", fontSize = 12.sp)
+                    }
                 }
             }
         ) {
@@ -316,26 +363,154 @@ fun CorpusAnalyzerScreen(
                 Spacer(Modifier.height(10.dp))
             }
 
-            val vScroll = rememberScrollState()
-            val hScroll = rememberScrollState()
-            Surface(
-                modifier = Modifier.fillMaxSize(),
-                shape = RoundedCornerShape(10.dp),
-                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)
-            ) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(12.dp)
-                        .verticalScroll(vScroll)
-                        .horizontalScroll(hScroll)
+            val isMultiColTable = tableViewMode && parsedTableRows.isNotEmpty() && parsedTableRows.first().size >= 2
+
+            if (isMultiColTable) {
+                Surface(
+                    modifier = Modifier.fillMaxSize(),
+                    shape = RoundedCornerShape(10.dp),
+                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.30f),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.25f))
                 ) {
-                    Text(
-                        text = previewContent,
-                        fontFamily = FontFamily.Monospace,
-                        fontSize = 12.sp,
-                        lineHeight = 18.sp
-                    )
+                    Column(modifier = Modifier.fillMaxSize()) {
+                        // Táblázat fejléc
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.65f))
+                                .padding(horizontal = 14.dp, vertical = 9.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "#",
+                                style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                                modifier = Modifier.width(56.dp)
+                            )
+                            Text(
+                                text = "Elem / N-gram / Szó",
+                                style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                                modifier = Modifier.weight(1.3f)
+                            )
+                            Text(
+                                text = "Gyakoriság (%)",
+                                style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                                modifier = Modifier.weight(1f)
+                            )
+                            if (parsedTableRows.first().size >= 3) {
+                                Text(
+                                    text = "Előfordulás (db)",
+                                    style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                                    modifier = Modifier.weight(1f)
+                                )
+                            }
+                        }
+                        HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.35f))
+
+                        val tableListState = rememberLazyListState()
+                        Box(modifier = Modifier.fillMaxSize()) {
+                            LazyColumn(
+                                state = tableListState,
+                                modifier = Modifier.fillMaxSize().padding(end = 14.dp)
+                            ) {
+                                items(parsedTableRows.size) { idx ->
+                                    val row = parsedTableRows[idx]
+                                    val bgColor = if (idx % 2 == 0) {
+                                        Color.Transparent
+                                    } else {
+                                        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)
+                                    }
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .background(bgColor)
+                                            .padding(horizontal = 14.dp, vertical = 7.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text(
+                                            text = "${idx + 1}.",
+                                            style = MaterialTheme.typography.bodySmall.copy(
+                                                fontFamily = FontFamily.Monospace,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            ),
+                                            modifier = Modifier.width(56.dp)
+                                        )
+                                        Text(
+                                            text = row.getOrElse(0) { "" },
+                                            style = MaterialTheme.typography.bodyMedium.copy(
+                                                fontFamily = FontFamily.Monospace,
+                                                fontWeight = FontWeight.Bold,
+                                                color = MaterialTheme.colorScheme.primary
+                                            ),
+                                            modifier = Modifier.weight(1.3f)
+                                        )
+                                        Text(
+                                            text = row.getOrElse(1) { "" },
+                                            style = MaterialTheme.typography.bodyMedium.copy(
+                                                fontFamily = FontFamily.Monospace
+                                            ),
+                                            modifier = Modifier.weight(1f)
+                                        )
+                                        if (row.size >= 3) {
+                                            Text(
+                                                text = row.getOrElse(2) { "" },
+                                                style = MaterialTheme.typography.bodySmall.copy(
+                                                    fontFamily = FontFamily.Monospace,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                ),
+                                                modifier = Modifier.weight(1f)
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                            VerticalScrollbar(
+                                adapter = rememberScrollbarAdapter(tableListState),
+                                modifier = Modifier
+                                    .align(Alignment.CenterEnd)
+                                    .fillMaxHeight()
+                                    .padding(vertical = 4.dp, horizontal = 2.dp)
+                            )
+                        }
+                    }
+                }
+            } else {
+                val vScroll = rememberScrollState()
+                val hScroll = rememberScrollState()
+                Surface(
+                    modifier = Modifier.fillMaxSize(),
+                    shape = RoundedCornerShape(10.dp),
+                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)
+                ) {
+                    Box(modifier = Modifier.fillMaxSize()) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(start = 12.dp, top = 12.dp, end = 20.dp, bottom = 20.dp)
+                                .verticalScroll(vScroll)
+                                .horizontalScroll(hScroll)
+                        ) {
+                            Text(
+                                text = previewContent,
+                                fontFamily = FontFamily.Monospace,
+                                fontSize = 12.sp,
+                                lineHeight = 18.sp
+                            )
+                        }
+                        VerticalScrollbar(
+                            adapter = rememberScrollbarAdapter(vScroll),
+                            modifier = Modifier
+                                .align(Alignment.CenterEnd)
+                                .fillMaxHeight()
+                                .padding(vertical = 4.dp, horizontal = 2.dp)
+                        )
+                        HorizontalScrollbar(
+                            adapter = rememberScrollbarAdapter(hScroll),
+                            modifier = Modifier
+                                .align(Alignment.BottomCenter)
+                                .fillMaxWidth()
+                                .padding(start = 4.dp, end = 16.dp, bottom = 2.dp)
+                        )
+                    }
                 }
             }
         }
@@ -1655,10 +1830,10 @@ fun GeneratedLayoutsBrowserScreen(
             heatmapBitmap = bmp
             yamlAndLogText = buildString {
                 appendLine("=== YAML DEFINÍCIÓ (${yamlFile.name}) ===")
-                appendLine(yText.trim())
+                appendLine(yText.trim().replace("\t", "    "))
                 if (lText.isNotBlank()) {
                     appendLine("\n=== TARTOZÓ OPTIMALIZÁLÁSI LOG ($parentDirName.txt) ===")
-                    appendLine(lText.trim())
+                    appendLine(lText.trim().replace("\t", "    "))
                 }
             }
         }
@@ -1703,97 +1878,108 @@ fun GeneratedLayoutsBrowserScreen(
                 )
             } else {
                 val genRoot = File("generatedkeyboards")
-                LazyColumn(
-                    modifier = Modifier.fillMaxSize(),
-                    verticalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    groups.forEach { group ->
-                        item(key = "group_${group.runName}") {
-                            val isExpanded = expandedGroups.contains(group.runName)
-                            Surface(
-                                shape = RoundedCornerShape(8.dp),
-                                color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.55f),
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clickable {
-                                        expandedGroups = if (isExpanded) {
-                                            expandedGroups - group.runName
-                                        } else {
-                                            expandedGroups + group.runName
-                                        }
-                                    }
-                            ) {
-                                Row(
-                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Icon(
-                                        imageVector = if (isExpanded) Icons.Default.FolderOpen else Icons.Default.Folder,
-                                        contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.secondary,
-                                        modifier = Modifier.size(18.dp)
-                                    )
-                                    Spacer(Modifier.width(8.dp))
-                                    Text(
-                                        text = group.runName,
-                                        style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold),
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis,
-                                        modifier = Modifier.weight(1f)
-                                    )
-                                    Text(
-                                        text = "${group.yamlFiles.size}",
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = MaterialTheme.colorScheme.onSecondaryContainer
-                                    )
-                                }
-                            }
-                        }
-
-                        if (expandedGroups.contains(group.runName)) {
-                            items(group.yamlFiles, key = { it.absolutePath }) { yf ->
-                                val relPath = yf.relativeTo(genRoot).path.replace('\\', '/')
-                                val isSelected = selectedRelativePath == relPath
+                val browserListState = rememberLazyListState()
+                Box(modifier = Modifier.fillMaxSize()) {
+                    LazyColumn(
+                        state = browserListState,
+                        modifier = Modifier.fillMaxSize().padding(end = 14.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        groups.forEach { group ->
+                            item(key = "group_${group.runName}") {
+                                val isExpanded = expandedGroups.contains(group.runName)
                                 Surface(
                                     shape = RoundedCornerShape(8.dp),
-                                    color = if (isSelected) {
-                                        MaterialTheme.colorScheme.primaryContainer
-                                    } else {
-                                        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)
-                                    },
-                                    border = if (isSelected) BorderStroke(1.dp, MaterialTheme.colorScheme.primary) else null,
+                                    color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.55f),
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .padding(start = 16.dp)
                                         .clickable {
-                                            selectedRelativePath = relPath
-                                            openAndAnalyzeGeneratedLayout(relPath, autoDetectCorpus = true)
+                                            expandedGroups = if (isExpanded) {
+                                                expandedGroups - group.runName
+                                            } else {
+                                                expandedGroups + group.runName
+                                            }
                                         }
                                 ) {
                                     Row(
-                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 7.dp),
+                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
                                         Icon(
-                                            imageVector = Icons.Default.Description,
+                                            imageVector = if (isExpanded) Icons.Default.FolderOpen else Icons.Default.Folder,
                                             contentDescription = null,
-                                            tint = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                                            modifier = Modifier.size(16.dp)
+                                            tint = MaterialTheme.colorScheme.secondary,
+                                            modifier = Modifier.size(18.dp)
                                         )
                                         Spacer(Modifier.width(8.dp))
                                         Text(
-                                            text = yf.name,
-                                            style = MaterialTheme.typography.bodySmall.copy(
-                                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
-                                            ),
+                                            text = group.runName,
+                                            style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold),
                                             maxLines = 1,
-                                            overflow = TextOverflow.Ellipsis
+                                            overflow = TextOverflow.Ellipsis,
+                                            modifier = Modifier.weight(1f)
                                         )
+                                        Text(
+                                            text = "${group.yamlFiles.size}",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = MaterialTheme.colorScheme.onSecondaryContainer
+                                        )
+                                    }
+                                }
+                            }
+
+                            if (expandedGroups.contains(group.runName)) {
+                                items(group.yamlFiles, key = { it.absolutePath }) { yf ->
+                                    val relPath = yf.relativeTo(genRoot).path.replace('\\', '/')
+                                    val isSelected = selectedRelativePath == relPath
+                                    Surface(
+                                        shape = RoundedCornerShape(8.dp),
+                                        color = if (isSelected) {
+                                            MaterialTheme.colorScheme.primaryContainer
+                                        } else {
+                                            MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)
+                                        },
+                                        border = if (isSelected) BorderStroke(1.dp, MaterialTheme.colorScheme.primary) else null,
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(start = 16.dp)
+                                            .clickable {
+                                                selectedRelativePath = relPath
+                                                openAndAnalyzeGeneratedLayout(relPath, autoDetectCorpus = true)
+                                            }
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 7.dp),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.Description,
+                                                contentDescription = null,
+                                                tint = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                                modifier = Modifier.size(16.dp)
+                                            )
+                                            Spacer(Modifier.width(8.dp))
+                                            Text(
+                                                text = yf.name,
+                                                style = MaterialTheme.typography.bodySmall.copy(
+                                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                                                ),
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis
+                                            )
+                                        }
                                     }
                                 }
                             }
                         }
                     }
+                    VerticalScrollbar(
+                        adapter = rememberScrollbarAdapter(browserListState),
+                        modifier = Modifier
+                            .align(Alignment.CenterEnd)
+                            .fillMaxHeight()
+                            .padding(vertical = 2.dp)
+                    )
                 }
             }
         }

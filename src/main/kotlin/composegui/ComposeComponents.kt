@@ -70,10 +70,21 @@ fun KeyboardAnalyzerTheme(
     darkTheme: Boolean,
     content: @Composable () -> Unit
 ) {
-    MaterialTheme(
-        colorScheme = if (darkTheme) DarkColorScheme else LightColorScheme,
-        content = content
+    val scheme = if (darkTheme) DarkColorScheme else LightColorScheme
+    val scrollbarStyle = ScrollbarStyle(
+        minimalHeight = 28.dp,
+        thickness = 10.dp,
+        shape = RoundedCornerShape(5.dp),
+        hoverDurationMillis = 250,
+        unhoverColor = scheme.onSurfaceVariant.copy(alpha = 0.45f),
+        hoverColor = scheme.primary.copy(alpha = 0.85f)
     )
+    MaterialTheme(colorScheme = scheme) {
+        CompositionLocalProvider(
+            LocalScrollbarStyle provides scrollbarStyle,
+            content = content
+        )
+    }
 }
 
 // =========================================================================
@@ -462,7 +473,7 @@ fun HeatmapViewerCard(
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .heightIn(min = minHeight)
+                .height(if (fitMode) minHeight else (minHeight + 70.dp))
                 .clip(RoundedCornerShape(10.dp))
                 .background(Color(0xFFF1F5F9))
                 .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.35f), RoundedCornerShape(10.dp)),
@@ -501,23 +512,39 @@ fun HeatmapViewerCard(
                 } else {
                     val hScroll = rememberScrollState()
                     val vScroll = rememberScrollState()
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .horizontalScroll(hScroll)
-                            .verticalScroll(vScroll)
-                            .padding(8.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Image(
-                            bitmap = imageBitmap,
-                            contentDescription = title,
-                            contentScale = ContentScale.FillBounds,
-                            filterQuality = FilterQuality.High,
-                            modifier = Modifier.size(
-                                width = (imageBitmap.width * zoom).dp,
-                                height = (imageBitmap.height * zoom).dp
+                    Box(modifier = Modifier.fillMaxSize()) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .horizontalScroll(hScroll)
+                                .verticalScroll(vScroll)
+                                .padding(12.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Image(
+                                bitmap = imageBitmap,
+                                contentDescription = title,
+                                contentScale = ContentScale.FillBounds,
+                                filterQuality = FilterQuality.High,
+                                modifier = Modifier.size(
+                                    width = (imageBitmap.width * zoom).dp,
+                                    height = (imageBitmap.height * zoom).dp
+                                )
                             )
+                        }
+                        VerticalScrollbar(
+                            adapter = rememberScrollbarAdapter(vScroll),
+                            modifier = Modifier
+                                .align(Alignment.CenterEnd)
+                                .fillMaxHeight()
+                                .padding(end = 2.dp, top = 2.dp, bottom = 10.dp)
+                        )
+                        HorizontalScrollbar(
+                            adapter = rememberScrollbarAdapter(hScroll),
+                            modifier = Modifier
+                                .align(Alignment.BottomCenter)
+                                .fillMaxWidth()
+                                .padding(start = 2.dp, end = 10.dp, bottom = 2.dp)
                         )
                     }
                 }

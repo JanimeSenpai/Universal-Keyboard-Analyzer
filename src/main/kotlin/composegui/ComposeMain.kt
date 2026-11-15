@@ -30,6 +30,7 @@ import java.io.ByteArrayOutputStream
 import java.io.OutputStream
 import java.io.PrintStream
 import java.nio.charset.StandardCharsets
+import java.util.concurrent.TimeUnit
 
 fun main() {
     launchComposeGui()
@@ -63,9 +64,37 @@ private enum class MainTab(
     BROWSER("5. Generált layoutok böngészése", "Böngésző", Icons.Default.FolderSpecial)
 }
 
+private fun isWindowsAppsDarkTheme(): Boolean? {
+    val osName = System.getProperty("os.name")?.lowercase() ?: return null
+    if (!osName.contains("win")) return null
+    return runCatching {
+        val process = ProcessBuilder(
+            "reg", "query",
+            "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize",
+            "/v", "AppsUseLightTheme"
+        )
+            .redirectErrorStream(true)
+            .start()
+        val output = process.inputStream.bufferedReader().use { it.readText() }
+        val finished = process.waitFor(2, TimeUnit.SECONDS)
+        if (!finished) {
+            process.destroyForcibly()
+            return@runCatching null
+        }
+        val match = Regex("""AppsUseLightTheme\s+REG_DWORD\s+0x([0-9a-fA-F]+)""").find(output)
+        val value = match?.groupValues?.get(1)?.toIntOrNull(16)
+        when (value) {
+            0 -> true
+            1 -> false
+            else -> null
+        }
+    }.getOrNull()
+}
+
 @Composable
 fun ComposeAppRoot() {
-    var darkTheme by remember { mutableStateOf(false) }
+    val systemInDark = isSystemInDarkTheme()
+    var darkTheme by remember { mutableStateOf(isWindowsAppsDarkTheme() ?: systemInDark) }
     var selectedTab by remember { mutableStateOf(MainTab.CORPUS) }
     var isRunningTask by remember { mutableStateOf(false) }
     var statusMessage by remember { mutableStateOf("Kész.") }
@@ -82,8 +111,9 @@ fun ComposeAppRoot() {
         val lock = Any()
 
         fun appendChunk(chunk: String) {
+            val cleanChunk = chunk.replace("\t", "    ")
             synchronized(lock) {
-                val combined = consoleText + chunk
+                val combined = consoleText + cleanChunk
                 consoleText = if (combined.length > 90_000) {
                     combined.takeLast(75_000)
                 } else {
@@ -138,22 +168,18 @@ fun ComposeAppRoot() {
             isRunningTask = true
             statusMessage = "Folyamatban: $taskName..."
             println("\n>>> INDÍTÁS: $taskName <<<")
-            coroutineScope.launch(Dispatchers.IO) {
+            coroutineScope.launch {
                 try {
-                    block()
-                    withContext(Dispatchers.Main) {
-                        statusMessage = "Befejezve: $taskName"
-                        println(">>> KÉSZ: $taskName <<<")
+                    withContext(Dispatchers.IO) {
+                        block()
                     }
+                    statusMessage = "Befejezve: $taskName"
+                    println(">>> KÉSZ: $taskName <<<")
                 } catch (e: Throwable) {
                     e.printStackTrace()
-                    withContext(Dispatchers.Main) {
-                        statusMessage = "Hiba történt: ${e.message}"
-                    }
+                    statusMessage = "Hiba történt: ${e.message}"
                 } finally {
-                    withContext(Dispatchers.Main) {
-                        isRunningTask = false
-                    }
+                    isRunningTask = false
                 }
             }
         }
@@ -216,6 +242,20 @@ fun ComposeAppRoot() {
                         )
                     }
                     Spacer(Modifier.weight(1f))
+                    IconButton(
+                        onClick = { consoleExpanded = !consoleExpanded },
+                        modifier = Modifier.padding(bottom = 4.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Terminal,
+                            contentDescription = if (consoleExpanded) "Konzol elrejtése" else "Konzol megnyitása",
+                            tint = if (consoleExpanded) {
+                                MaterialTheme.colorScheme.primary
+                            } else {
+                                MaterialTheme.colorScheme.onSurfaceVariant
+                            }
+                        )
+                    }
                     IconButton(
                         onClick = { darkTheme = !darkTheme },
                         modifier = Modifier.padding(bottom = 12.dp)
@@ -333,18 +373,26 @@ fun ComposeAppRoot() {
 
                     // Összecsukható élő konzol alul
                     AnimatedVisibility(visible = consoleExpanded) {
+                        val consoleBg = if (darkTheme) Color(0xFF0F172A) else Color(0xFFF8FAFC)
+                        val consoleHeaderBg = if (darkTheme) Color(0xFF1E293B) else Color(0xFFE2E8F0)
+                        val consoleTextColor = if (darkTheme) Color(0xFFE2E8F0) else Color(0xFF0F172A)
+                        val consoleHeaderTitleColor = if (darkTheme) Color(0xFFE2E8F0) else Color(0xFF1E293B)
+                        val consoleIconTint = if (darkTheme) Color(0xFF38BDF8) else Color(0xFF0284C7)
+                        val consoleActionTint = if (darkTheme) Color(0xFF94A3B8) else Color(0xFF475569)
+
                         Surface(
-                            color = Color(0xFF0F172A),
-                            contentColor = Color(0xFFE2E8F0),
+                            color = consoleBg,
+                            contentColor = consoleTextColor,
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .height(195.dp)
                         ) {
                             Column(modifier = Modifier.fillMaxSize()) {
+                                HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.35f))
                                 Row(
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .background(Color(0xFF1E293B))
+                                        .background(consoleHeaderBg)
                                         .padding(horizontal = 14.dp, vertical = 6.dp),
                                     verticalAlignment = Alignment.CenterVertically,
                                     horizontalArrangement = Arrangement.SpaceBetween
@@ -353,7 +401,7 @@ fun ComposeAppRoot() {
                                         Icon(
                                             imageVector = Icons.Default.Terminal,
                                             contentDescription = null,
-                                            tint = Color(0xFF38BDF8),
+                                            tint = consoleIconTint,
                                             modifier = Modifier.size(16.dp)
                                         )
                                         Spacer(Modifier.width(8.dp))
@@ -361,23 +409,42 @@ fun ComposeAppRoot() {
                                             text = "Élő Konzol Kimenet (System.out / System.err)",
                                             style = MaterialTheme.typography.labelMedium.copy(
                                                 fontWeight = FontWeight.Bold,
-                                                color = Color(0xFFE2E8F0)
+                                                color = consoleHeaderTitleColor
                                             )
                                         )
                                     }
-                                    TextButton(
-                                        onClick = { consoleText = "" },
-                                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
-                                        modifier = Modifier.height(26.dp)
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(4.dp)
                                     ) {
-                                        Icon(
-                                            imageVector = Icons.Default.DeleteSweep,
-                                            contentDescription = null,
-                                            tint = Color(0xFF94A3B8),
-                                            modifier = Modifier.size(15.dp)
-                                        )
-                                        Spacer(Modifier.width(4.dp))
-                                        Text("Törlés", fontSize = 11.sp, color = Color(0xFF94A3B8))
+                                        TextButton(
+                                            onClick = { consoleExpanded = false },
+                                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
+                                            modifier = Modifier.height(26.dp)
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.ExpandMore,
+                                                contentDescription = null,
+                                                tint = consoleActionTint,
+                                                modifier = Modifier.size(15.dp)
+                                            )
+                                            Spacer(Modifier.width(4.dp))
+                                            Text("Konzol elrejtése", fontSize = 11.sp, color = consoleActionTint)
+                                        }
+                                        TextButton(
+                                            onClick = { consoleText = "" },
+                                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
+                                            modifier = Modifier.height(26.dp)
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.DeleteSweep,
+                                                contentDescription = null,
+                                                tint = consoleActionTint,
+                                                modifier = Modifier.size(15.dp)
+                                            )
+                                            Spacer(Modifier.width(4.dp))
+                                            Text("Törlés", fontSize = 11.sp, color = consoleActionTint)
+                                        }
                                     }
                                 }
                                 Box(
@@ -391,7 +458,7 @@ fun ComposeAppRoot() {
                                         fontFamily = FontFamily.Monospace,
                                         fontSize = 12.sp,
                                         lineHeight = 17.sp,
-                                        color = Color(0xFFE2E8F0)
+                                        color = consoleTextColor
                                     )
                                 }
                             }
