@@ -1,6 +1,7 @@
 package composegui
 
 import androidx.compose.foundation.*
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -14,13 +15,18 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.toComposeImageBitmap
+import androidx.compose.ui.input.pointer.PointerIcon
+import androidx.compose.ui.input.pointer.pointerHoverIcon
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import java.awt.Cursor
 import java.awt.Desktop
 import java.awt.image.BufferedImage
 import java.io.File
@@ -65,6 +71,8 @@ private val DarkColorScheme = darkColorScheme(
     outline = Color(0xFF475569)
 )
 
+val LocalIsDarkTheme = compositionLocalOf { false }
+
 @Composable
 fun KeyboardAnalyzerTheme(
     darkTheme: Boolean,
@@ -81,6 +89,7 @@ fun KeyboardAnalyzerTheme(
     )
     MaterialTheme(colorScheme = scheme) {
         CompositionLocalProvider(
+            LocalIsDarkTheme provides darkTheme,
             LocalScrollbarStyle provides scrollbarStyle,
             content = content
         )
@@ -393,10 +402,12 @@ fun HeatmapViewerCard(
     imageFile: File?,
     emptyMessage: String,
     modifier: Modifier = Modifier,
-    minHeight: Dp = 280.dp
+    minHeight: Dp = 390.dp
 ) {
     var fitMode by remember { mutableStateOf(true) }
     var zoom by remember { mutableStateOf(1.0f) }
+    var viewerHeight by remember(minHeight) { mutableStateOf(minHeight) }
+    val density = LocalDensity.current
 
     SectionCard(
         title = title,
@@ -470,12 +481,17 @@ fun HeatmapViewerCard(
             }
         }
     ) {
+        val isDark = LocalIsDarkTheme.current
+        val viewerBg = if (isDark) Color(0xFF0F172A) else Color(0xFFF1F5F9)
+        val emptyIconTint = if (isDark) Color(0xFF94A3B8) else Color(0xFF64748B)
+        val emptyTextColor = MaterialTheme.colorScheme.onSurfaceVariant
+
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(if (fitMode) minHeight else (minHeight + 70.dp))
+                .height(viewerHeight)
                 .clip(RoundedCornerShape(10.dp))
-                .background(Color(0xFFF1F5F9))
+                .background(viewerBg)
                 .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.35f), RoundedCornerShape(10.dp)),
             contentAlignment = Alignment.Center
         ) {
@@ -488,14 +504,14 @@ fun HeatmapViewerCard(
                     Icon(
                         imageVector = Icons.Default.Keyboard,
                         contentDescription = null,
-                        tint = Color(0xFF64748B),
+                        tint = emptyIconTint,
                         modifier = Modifier.size(40.dp)
                     )
                     Spacer(Modifier.height(8.dp))
                     Text(
                         text = emptyMessage,
                         style = MaterialTheme.typography.bodyMedium,
-                        color = Color(0xFF475569)
+                        color = emptyTextColor
                     )
                 }
             } else {
@@ -549,6 +565,31 @@ fun HeatmapViewerCard(
                     }
                 }
             }
+        }
+
+        // Alsó magasság-átméretező sáv (megragadható és húzható)
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(16.dp)
+                .pointerHoverIcon(PointerIcon(Cursor.getPredefinedCursor(Cursor.S_RESIZE_CURSOR)))
+                .pointerInput(density) {
+                    detectVerticalDragGestures { change, dragAmount ->
+                        change.consume()
+                        with(density) {
+                            viewerHeight = (viewerHeight + dragAmount.toDp()).coerceIn(180.dp, 950.dp)
+                        }
+                    }
+                },
+            contentAlignment = Alignment.Center
+        ) {
+            Box(
+                modifier = Modifier
+                    .width(52.dp)
+                    .height(4.dp)
+                    .clip(RoundedCornerShape(2.dp))
+                    .background(MaterialTheme.colorScheme.outline.copy(alpha = 0.55f))
+            )
         }
     }
 }

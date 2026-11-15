@@ -5,6 +5,7 @@ import androidx.compose.animation.Crossfade
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.window.WindowDraggableArea
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -18,10 +19,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.window.Window
-import androidx.compose.ui.window.WindowPosition
-import androidx.compose.ui.window.application
-import androidx.compose.ui.window.rememberWindowState
+import androidx.compose.ui.window.*
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -45,9 +43,13 @@ fun launchComposeGui() {
         Window(
             onCloseRequest = ::exitApplication,
             state = windowState,
+            undecorated = true,
             title = "Universal Keyboard Analyzer — Compose Multiplatform GUI"
         ) {
-            ComposeAppRoot()
+            ComposeAppRoot(
+                windowState = windowState,
+                onCloseRequest = ::exitApplication
+            )
         }
     }
 }
@@ -92,7 +94,10 @@ private fun isWindowsAppsDarkTheme(): Boolean? {
 }
 
 @Composable
-fun ComposeAppRoot() {
+fun FrameWindowScope.ComposeAppRoot(
+    windowState: WindowState,
+    onCloseRequest: () -> Unit
+) {
     val systemInDark = isSystemInDarkTheme()
     var darkTheme by remember { mutableStateOf(isWindowsAppsDarkTheme() ?: systemInDark) }
     var selectedTab by remember { mutableStateOf(MainTab.CORPUS) }
@@ -272,88 +277,141 @@ fun ComposeAppRoot() {
 
                 // Jobb oldali fő tartalom + felső fejléc + alsó konzol sáv
                 Column(modifier = Modifier.weight(1f).fillMaxHeight()) {
-                    // Felső fejléc sáv
-                    Surface(
-                        color = MaterialTheme.colorScheme.surface,
-                        tonalElevation = 1.dp,
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Column {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = 20.dp, vertical = 12.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.SpaceBetween
-                            ) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(
-                                        imageVector = selectedTab.icon,
-                                        contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.primary,
-                                        modifier = Modifier.size(24.dp)
-                                    )
-                                    Spacer(Modifier.width(10.dp))
-                                    Text(
-                                        text = selectedTab.title,
-                                        style = MaterialTheme.typography.titleLarge.copy(
-                                            fontWeight = FontWeight.Bold
-                                        )
-                                    )
-                                }
-
+                    // Felső fejléc sáv (ablakmozgatással és ablakvezérlő gombokkal)
+                    WindowDraggableArea {
+                        Surface(
+                            color = MaterialTheme.colorScheme.surface,
+                            tonalElevation = 1.dp,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Column {
                                 Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(start = 20.dp, end = 12.dp, top = 10.dp, bottom = 10.dp),
                                     verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                    horizontalArrangement = Arrangement.SpaceBetween
                                 ) {
-                                    Surface(
-                                        shape = RoundedCornerShape(20.dp),
-                                        color = if (isRunningTask) {
-                                            MaterialTheme.colorScheme.tertiary.copy(alpha = 0.15f)
-                                        } else {
-                                            MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.6f)
-                                        }
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Icon(
+                                            imageVector = selectedTab.icon,
+                                            contentDescription = null,
+                                            tint = MaterialTheme.colorScheme.primary,
+                                            modifier = Modifier.size(24.dp)
+                                        )
+                                        Spacer(Modifier.width(10.dp))
+                                        Text(
+                                            text = selectedTab.title,
+                                            style = MaterialTheme.typography.titleLarge.copy(
+                                                fontWeight = FontWeight.Bold
+                                            )
+                                        )
+                                    }
+
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
                                     ) {
-                                        Row(
-                                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-                                            verticalAlignment = Alignment.CenterVertically
-                                        ) {
-                                            if (isRunningTask) {
-                                                CircularProgressIndicator(
-                                                    modifier = Modifier.size(14.dp),
-                                                    strokeWidth = 2.dp
-                                                )
-                                                Spacer(Modifier.width(8.dp))
+                                        Surface(
+                                            shape = RoundedCornerShape(20.dp),
+                                            color = if (isRunningTask) {
+                                                MaterialTheme.colorScheme.tertiary.copy(alpha = 0.15f)
+                                            } else {
+                                                MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.6f)
                                             }
+                                        ) {
+                                            Row(
+                                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                if (isRunningTask) {
+                                                    CircularProgressIndicator(
+                                                        modifier = Modifier.size(14.dp),
+                                                        strokeWidth = 2.dp
+                                                    )
+                                                    Spacer(Modifier.width(8.dp))
+                                                }
+                                                Text(
+                                                    text = statusMessage,
+                                                    style = MaterialTheme.typography.labelMedium
+                                                )
+                                            }
+                                        }
+
+                                        FilledTonalButton(
+                                            onClick = { consoleExpanded = !consoleExpanded },
+                                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+                                            modifier = Modifier.height(34.dp)
+                                        ) {
+                                            Icon(
+                                                imageVector = if (consoleExpanded) Icons.Default.ExpandMore else Icons.Default.Terminal,
+                                                contentDescription = null,
+                                                modifier = Modifier.size(16.dp)
+                                            )
+                                            Spacer(Modifier.width(6.dp))
                                             Text(
-                                                text = statusMessage,
-                                                style = MaterialTheme.typography.labelMedium
+                                                text = if (consoleExpanded) "Konzol elrejtése" else "Konzol megnyitása",
+                                                fontSize = 12.sp
+                                            )
+                                        }
+
+                                        VerticalDivider(
+                                            modifier = Modifier.height(22.dp).padding(horizontal = 2.dp),
+                                            color = MaterialTheme.colorScheme.outline.copy(alpha = 0.35f)
+                                        )
+
+                                        // Tálcára tétel (Minimize)
+                                        IconButton(
+                                            onClick = { windowState.isMinimized = true },
+                                            modifier = Modifier.size(34.dp)
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.Remove,
+                                                contentDescription = "Kis méret (Tálcára)",
+                                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                modifier = Modifier.size(18.dp)
+                                            )
+                                        }
+
+                                        // Ablakméretezés (Maximize / Restore)
+                                        val isMaximized = windowState.placement == WindowPlacement.Maximized
+                                        IconButton(
+                                            onClick = {
+                                                windowState.placement = if (isMaximized) {
+                                                    WindowPlacement.Floating
+                                                } else {
+                                                    WindowPlacement.Maximized
+                                                }
+                                            },
+                                            modifier = Modifier.size(34.dp)
+                                        ) {
+                                            Icon(
+                                                imageVector = if (isMaximized) Icons.Default.FilterNone else Icons.Default.CropSquare,
+                                                contentDescription = if (isMaximized) "Előző méret" else "Teljes képernyő",
+                                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                modifier = Modifier.size(17.dp)
+                                            )
+                                        }
+
+                                        // Bezárás (Close)
+                                        IconButton(
+                                            onClick = onCloseRequest,
+                                            modifier = Modifier.size(34.dp)
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.Close,
+                                                contentDescription = "Bezárás",
+                                                tint = MaterialTheme.colorScheme.error,
+                                                modifier = Modifier.size(19.dp)
                                             )
                                         }
                                     }
-
-                                    FilledTonalButton(
-                                        onClick = { consoleExpanded = !consoleExpanded },
-                                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
-                                        modifier = Modifier.height(34.dp)
-                                    ) {
-                                        Icon(
-                                            imageVector = if (consoleExpanded) Icons.Default.ExpandMore else Icons.Default.Terminal,
-                                            contentDescription = null,
-                                            modifier = Modifier.size(16.dp)
-                                        )
-                                        Spacer(Modifier.width(6.dp))
-                                        Text(
-                                            text = if (consoleExpanded) "Konzol elrejtése" else "Konzol megnyitása",
-                                            fontSize = 12.sp
-                                        )
-                                    }
                                 }
-                            }
-                            if (isRunningTask) {
-                                LinearProgressIndicator(modifier = Modifier.fillMaxWidth().height(3.dp))
-                            } else {
-                                HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.25f))
+                                if (isRunningTask) {
+                                    LinearProgressIndicator(modifier = Modifier.fillMaxWidth().height(3.dp))
+                                } else {
+                                    HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.25f))
+                                }
                             }
                         }
                     }

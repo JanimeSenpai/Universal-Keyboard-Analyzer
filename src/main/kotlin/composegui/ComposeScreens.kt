@@ -642,19 +642,19 @@ fun LayoutAnalyzerScreen(
                 subtitle = "Részletes statisztikák az alsó konzolra és a hőtérképre"
             ) {
                 val singleAnalyses = listOf<Pair<String, (String, String, String) -> Unit>>(
-                    "SFB elemzés (kba)" to { l, c, f -> runSimpleSfbAnalysis(l, c, f) },
-                    "Alternálás (laa)" to { l, c, f -> runAlternationAnalysis(l, c, f) },
-                    "2-Roll elemzés (l2ra)" to { l, c, f -> runRollAnalysis(l, c, f) },
-                    "3-Roll elemzés (l3ra)" to { l, c, f -> run3RollAnalysis(l, c, f) },
-                    "Redirect elemzés (lra)" to { l, c, f -> runRedirectAnalysis(l, c, f) },
-                    "Space SFS-1 (sfs1)" to { l, c, f -> runSpaceSfs1Analysis(l, c, f) },
-                    "Kéz egyensúly (hb)" to { l, c, f -> runHandBalanceAnalysis(l, c, f) },
-                    "Sorok terhelése (ru)" to { l, c, f -> runRowUsageAnalysis(l, c, f) },
-                    "Pinky Off (po)" to { l, c, f -> runPinkyOffAnalysis(l, c, f) },
-                    "Lateral Stretch (lsb)" to { l, c, f -> runLateralStretchAnalysis(l, c, f) },
-                    "Pinky Stretch (psb)" to { l, c, f -> runPinkyStretchAnalysis(l, c, f) },
-                    "Full Scissor (fsb)" to { l, c, f -> runFullScissorAnalysis(l, c, f) },
-                    "Half Scissor (hsb)" to { l, c, f -> runHalfScissorAnalysis(l, c, f) }
+                    "SFB elemzés" to { l, c, f -> runSimpleSfbAnalysis(l, c, f) },
+                    "Alternálás" to { l, c, f -> runAlternationAnalysis(l, c, f) },
+                    "2-Roll elemzés" to { l, c, f -> runRollAnalysis(l, c, f) },
+                    "3-Roll elemzés" to { l, c, f -> run3RollAnalysis(l, c, f) },
+                    "Redirect elemzés" to { l, c, f -> runRedirectAnalysis(l, c, f) },
+                    "Space SFS-1" to { l, c, f -> runSpaceSfs1Analysis(l, c, f) },
+                    "Kéz egyensúly" to { l, c, f -> runHandBalanceAnalysis(l, c, f) },
+                    "Sorok terhelése" to { l, c, f -> runRowUsageAnalysis(l, c, f) },
+                    "Pinky Off" to { l, c, f -> runPinkyOffAnalysis(l, c, f) },
+                    "Lateral Stretch" to { l, c, f -> runLateralStretchAnalysis(l, c, f) },
+                    "Pinky Stretch" to { l, c, f -> runPinkyStretchAnalysis(l, c, f) },
+                    "Full Scissor" to { l, c, f -> runFullScissorAnalysis(l, c, f) },
+                    "Half Scissor" to { l, c, f -> runHalfScissorAnalysis(l, c, f) }
                 )
 
                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -697,7 +697,7 @@ fun LayoutAnalyzerScreen(
                 ) {
                     Icon(Icons.Default.TableChart, contentDescription = null, modifier = Modifier.size(18.dp))
                     Spacer(Modifier.width(8.dp))
-                    Text("CSV Összesítő táblázat generálása (gcsv)")
+                    Text("CSV Összesítő táblázat generálása")
                 }
             }
         }
@@ -715,7 +715,7 @@ fun LayoutAnalyzerScreen(
                 imageBitmap = heatmapBitmap,
                 imageFile = heatmapFile,
                 emptyMessage = "Válassz ki egy layoutot és futtasd az elemzést a hőtérkép megjelenítéséhez.",
-                minHeight = 310.dp
+                minHeight = 390.dp
             )
 
             LayoutStatsSummaryCard(result = analysisResult)
@@ -1137,11 +1137,15 @@ fun EffortModelScreen(
                         options = StaggerType.entries,
                         selected = staggerType,
                         onSelect = { staggerType = it },
-                        modifier = Modifier.weight(1.3f)
+                        modifier = Modifier.weight(2f)
                     )
-                    IntSettingField("Sorok (numRows)", numRows, { numRows = it.coerceIn(2, 8) }, Modifier.weight(0.8f))
-                    IntSettingField("HomeRow", homeRow, { homeRow = it.coerceIn(0, 7) }, Modifier.weight(0.8f))
-                    DoubleSettingField("Szög (°)", angleDegrees, { angleDegrees = it }, Modifier.weight(0.8f))
+                    DoubleSettingField("Szög (°)", angleDegrees, { angleDegrees = it }, Modifier.weight(1f))
+                }
+
+                Spacer(Modifier.height(8.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    IntSettingField("Sorok (numRows)", numRows, { numRows = it.coerceIn(2, 8) }, Modifier.weight(1f))
+                    IntSettingField("HomeRow", homeRow, { homeRow = it.coerceIn(0, 7) }, Modifier.weight(1f))
                 }
 
                 Spacer(Modifier.height(6.dp))
@@ -1283,7 +1287,7 @@ fun EffortModelScreen(
                 imageBitmap = previewBitmap,
                 imageFile = previewFile,
                 emptyMessage = "Kattints a 'Hőtérkép és Effort Mátrix Generálása' gombra az előnézethez.",
-                minHeight = 340.dp
+                minHeight = 380.dp
             )
 
             SectionCard(
@@ -1997,7 +2001,7 @@ fun GeneratedLayoutsBrowserScreen(
                 imageBitmap = heatmapBitmap,
                 imageFile = heatmapFile,
                 emptyMessage = "Kattints egy generált .yaml fájlra a bal oldali listában az automatikus elemzéshez és a hőtérkép megjelenítéséhez!",
-                minHeight = 310.dp
+                minHeight = 380.dp
             )
 
             LayoutStatsSummaryCard(
