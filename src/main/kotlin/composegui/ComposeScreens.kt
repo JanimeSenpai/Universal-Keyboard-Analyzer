@@ -31,6 +31,17 @@ import java.nio.charset.StandardCharsets
 // 1. KÉPERNYŐ: KORPUSZ ELEMZŐ ESZKÖZÖK
 // =========================================================================
 
+private sealed interface CorpusTableEntry {
+    data class SectionHeader(val text: String) : CorpusTableEntry
+    data class DataRow(
+        val rank: Int,
+        val item: String,
+        val percentage: String,
+        val count: String,
+        val category: String? = null
+    ) : CorpusTableEntry
+}
+
 @Composable
 fun CorpusAnalyzerScreen(
     runTask: (String, suspend () -> Unit) -> Unit
@@ -51,7 +62,7 @@ fun CorpusAnalyzerScreen(
     var resultFiles by remember { mutableStateOf<List<String>>(emptyList()) }
     var selectedResultFile by remember { mutableStateOf<String?>(null) }
     var tableViewMode by remember { mutableStateOf(true) }
-    var parsedTableRows by remember { mutableStateOf<List<List<String>>>(emptyList()) }
+    var parsedTableEntries by remember { mutableStateOf<List<CorpusTableEntry>>(emptyList()) }
     var previewContent by remember {
         mutableStateOf("Válassz egy korpuszt és futtass egy elemzést, vagy válaszd ki a már elkészült statisztikai fájlokat.")
     }
@@ -76,19 +87,77 @@ fun CorpusAnalyzerScreen(
         }
     }
 
+    fun parseCorpusEntries(rawLines: List<String>): List<CorpusTableEntry> {
+        val entries = mutableListOf<CorpusTableEntry>()
+        var currentRank = 0
+        rawLines.forEachIndexed { lineIdx, rawLine ->
+            val trimmed = rawLine.trim()
+            if (trimmed.isEmpty()) return@forEachIndexed
+            val cols = rawLine.split('\t').map { it.trim() }
+            when {
+                cols.size >= 4 -> {
+                    currentRank++
+                    entries.add(
+                        CorpusTableEntry.DataRow(
+                            rank = currentRank,
+                            item = cols[0],
+                            percentage = cols[1],
+                            category = cols[2],
+                            count = cols[3]
+                        )
+                    )
+                }
+                cols.size == 3 -> {
+                    currentRank++
+                    entries.add(
+                        CorpusTableEntry.DataRow(
+                            rank = currentRank,
+                            item = cols[0],
+                            percentage = cols[1],
+                            count = cols[2],
+                            category = null
+                        )
+                    )
+                }
+                cols.size == 2 -> {
+                    currentRank++
+                    entries.add(
+                        CorpusTableEntry.DataRow(
+                            rank = currentRank,
+                            item = cols[0],
+                            percentage = cols[1],
+                            count = "",
+                            category = null
+                        )
+                    )
+                }
+                else -> {
+                    val single = cols[0]
+                    if (lineIdx == 0 && single.all { it.isDigit() }) {
+                        entries.add(CorpusTableEntry.SectionHeader("Összes elem / N-gram a korpuszban: $single db"))
+                    } else {
+                        if (single.endsWith(":")) {
+                            currentRank = 0
+                        }
+                        entries.add(CorpusTableEntry.SectionHeader(single))
+                    }
+                }
+            }
+        }
+        return entries
+    }
+
     fun loadResultFileText(corpus: String, fileName: String) {
         val f = File("analysis_results/$corpus/$fileName")
         if (f.exists() && f.isFile) {
             runCatching {
                 val rawLines = f.useLines(StandardCharsets.UTF_8) { lines ->
-                    lines.take(1000).toList()
+                    lines.take(3000).toList()
                 }
-                parsedTableRows = rawLines
-                    .filter { it.isNotBlank() }
-                    .map { line -> line.split('\t').map { it.trim() } }
+                parsedTableEntries = parseCorpusEntries(rawLines)
                 previewContent = formatTabSeparatedLines(rawLines)
             }.onFailure {
-                parsedTableRows = emptyList()
+                parsedTableEntries = emptyList()
                 previewContent = "Hiba a fájl olvasásakor: ${it.message}"
             }
         }
@@ -98,7 +167,7 @@ fun CorpusAnalyzerScreen(
         if (corpus == null) {
             resultFiles = emptyList()
             selectedResultFile = null
-            parsedTableRows = emptyList()
+            parsedTableEntries = emptyList()
             return
         }
         val dir = File("analysis_results/$corpus")
@@ -118,7 +187,7 @@ fun CorpusAnalyzerScreen(
         if (chosen != null) {
             loadResultFileText(corpus, chosen)
         } else {
-            parsedTableRows = emptyList()
+            parsedTableEntries = emptyList()
             previewContent = "Az 'analysis_results/$corpus' mappa még nem tartalmaz elemzési fájlokat.\nFuttasd az Összes Korpusz Elemzést vagy valamelyik egyedi modult!"
         }
     }
@@ -363,7 +432,12 @@ fun CorpusAnalyzerScreen(
                 Spacer(Modifier.height(10.dp))
             }
 
-            val isMultiColTable = tableViewMode && parsedTableRows.isNotEmpty() && parsedTableRows.first().size >= 2
+            val dataRows = remember(parsedTableEntries) {
+                parsedTableEntries.filterIsInstance<CorpusTableEntry.DataRow>()
+            }
+            val isMultiColTable = tableViewMode && dataRows.isNotEmpty()
+            val hasCategoryCol = remember(dataRows) { dataRows.any { it.category != null } }
+            val hasCountCol = remember(dataRows) { dataRows.any { it.count.isNotEmpty() } }
 
             if (isMultiColTable) {
                 Surface(
@@ -384,7 +458,7 @@ fun CorpusAnalyzerScreen(
                             Text(
                                 text = "#",
                                 style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
-                                modifier = Modifier.width(56.dp)
+                                modifier = Modifier.width(64.dp)
                             )
                             Text(
                                 text = "Elem / N-gram / Szó",
@@ -396,7 +470,14 @@ fun CorpusAnalyzerScreen(
                                 style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
                                 modifier = Modifier.weight(1f)
                             )
-                            if (parsedTableRows.first().size >= 3) {
+                            if (hasCategoryCol) {
+                                Text(
+                                    text = "Kategória",
+                                    style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                                    modifier = Modifier.weight(0.9f)
+                                )
+                            }
+                            if (hasCountCol) {
                                 Text(
                                     text = "Előfordulás (db)",
                                     style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
@@ -407,58 +488,93 @@ fun CorpusAnalyzerScreen(
                         HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.35f))
 
                         val tableListState = rememberLazyListState()
+                        LaunchedEffect(selectedResultFile, selectedCorpus) {
+                            tableListState.scrollToItem(0)
+                        }
+
                         Box(modifier = Modifier.fillMaxSize()) {
                             LazyColumn(
                                 state = tableListState,
                                 modifier = Modifier.fillMaxSize().padding(end = 14.dp)
                             ) {
-                                items(parsedTableRows.size) { idx ->
-                                    val row = parsedTableRows[idx]
-                                    val bgColor = if (idx % 2 == 0) {
-                                        Color.Transparent
-                                    } else {
-                                        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)
-                                    }
-                                    Row(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .background(bgColor)
-                                            .padding(horizontal = 14.dp, vertical = 7.dp),
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Text(
-                                            text = "${idx + 1}.",
-                                            style = MaterialTheme.typography.bodySmall.copy(
-                                                fontFamily = FontFamily.Monospace,
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                                            ),
-                                            modifier = Modifier.width(56.dp)
-                                        )
-                                        Text(
-                                            text = row.getOrElse(0) { "" },
-                                            style = MaterialTheme.typography.bodyMedium.copy(
-                                                fontFamily = FontFamily.Monospace,
-                                                fontWeight = FontWeight.Bold,
-                                                color = MaterialTheme.colorScheme.primary
-                                            ),
-                                            modifier = Modifier.weight(1.3f)
-                                        )
-                                        Text(
-                                            text = row.getOrElse(1) { "" },
-                                            style = MaterialTheme.typography.bodyMedium.copy(
-                                                fontFamily = FontFamily.Monospace
-                                            ),
-                                            modifier = Modifier.weight(1f)
-                                        )
-                                        if (row.size >= 3) {
-                                            Text(
-                                                text = row.getOrElse(2) { "" },
-                                                style = MaterialTheme.typography.bodySmall.copy(
-                                                    fontFamily = FontFamily.Monospace,
-                                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                                ),
-                                                modifier = Modifier.weight(1f)
-                                            )
+                                items(parsedTableEntries.size) { idx ->
+                                    when (val entry = parsedTableEntries[idx]) {
+                                        is CorpusTableEntry.SectionHeader -> {
+                                            Surface(
+                                                color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.55f),
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .padding(vertical = 2.dp)
+                                            ) {
+                                                Text(
+                                                    text = entry.text,
+                                                    style = MaterialTheme.typography.labelLarge.copy(
+                                                        fontWeight = FontWeight.Bold,
+                                                        color = MaterialTheme.colorScheme.onSecondaryContainer
+                                                    ),
+                                                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp)
+                                                )
+                                            }
+                                        }
+                                        is CorpusTableEntry.DataRow -> {
+                                            val bgColor = if (entry.rank % 2 == 1) {
+                                                Color.Transparent
+                                            } else {
+                                                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)
+                                            }
+                                            Row(
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .background(bgColor)
+                                                    .padding(horizontal = 14.dp, vertical = 7.dp),
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                Text(
+                                                    text = "${entry.rank}.",
+                                                    style = MaterialTheme.typography.bodySmall.copy(
+                                                        fontFamily = FontFamily.Monospace,
+                                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                    ),
+                                                    modifier = Modifier.width(64.dp)
+                                                )
+                                                Text(
+                                                    text = entry.item,
+                                                    style = MaterialTheme.typography.bodyMedium.copy(
+                                                        fontFamily = FontFamily.Monospace,
+                                                        fontWeight = FontWeight.Bold,
+                                                        color = MaterialTheme.colorScheme.primary
+                                                    ),
+                                                    modifier = Modifier.weight(1.3f)
+                                                )
+                                                Text(
+                                                    text = entry.percentage,
+                                                    style = MaterialTheme.typography.bodyMedium.copy(
+                                                        fontFamily = FontFamily.Monospace
+                                                    ),
+                                                    modifier = Modifier.weight(1f)
+                                                )
+                                                if (hasCategoryCol) {
+                                                    Text(
+                                                        text = entry.category ?: "-",
+                                                        style = MaterialTheme.typography.bodySmall.copy(
+                                                            fontFamily = FontFamily.Monospace,
+                                                            fontWeight = FontWeight.SemiBold,
+                                                            color = MaterialTheme.colorScheme.tertiary
+                                                        ),
+                                                        modifier = Modifier.weight(0.9f)
+                                                    )
+                                                }
+                                                if (hasCountCol) {
+                                                    Text(
+                                                        text = entry.count,
+                                                        style = MaterialTheme.typography.bodySmall.copy(
+                                                            fontFamily = FontFamily.Monospace,
+                                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                        ),
+                                                        modifier = Modifier.weight(1f)
+                                                    )
+                                                }
+                                            }
                                         }
                                     }
                                 }
