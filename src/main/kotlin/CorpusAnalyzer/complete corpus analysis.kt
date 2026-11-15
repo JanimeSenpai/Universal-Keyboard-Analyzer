@@ -7,6 +7,10 @@ fun launchCompleteCorpusAnalysis() {
     println("Kérem az elemzendő korpusz fájl nevét (a processable_texts mappából, pl. 'szoveg.txt'):")
     val filename = readln().trim()
 
+    completeCorpusAnalysis(filename)
+}
+
+fun completeCorpusAnalysis(filename: String) {
     val file = File("processable_texts/$filename")
     if (!file.exists()) {
         println("Hiba: A korpusz fájl nem található ($file).")

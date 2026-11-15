@@ -26,23 +26,22 @@ data class LayoutAnalysisResult(
 )
 
 // 1. KONZOLOS INDÍTÓ FÜGGVÉNY (Egyszeri futás)
-fun launchCompleteLayoutAnalysis() {
+fun launchCompleteLayoutAnalysis(folder: String = "keyboards") {
     println("--- TELJES BILLENTYŰZET ELEMZÉS ---")
 
     // 1. Billentyűzet bekérése (Már az új YAML rendszert használjuk)
-    println("Kérem az elemzendő billentyűzetkiosztás nevét (a keyboards mappából):")
-    var layoutName = readln().trim()
-    if (!layoutName.endsWith(".yaml")) layoutName += ".yaml"
+    println("Kérem az elemzendő billentyűzetkiosztás nevét (a $folder mappából):")
+    val layoutName = readln().trim()
 
-    val layoutFile = File("keyboards/$layoutName")
-    if (!layoutFile.exists()) {
-        println("Hiba: A billentyűzet fájl nem található ($layoutFile).")
+    val layoutFile = LayoutParser.resolveLayoutFile(layoutName, folder)
+    if (layoutFile == null || !layoutFile.exists()) {
+        println("Hiba: A billentyűzet fájl nem található a '$folder' mappában ($layoutName).")
         return
     }
 
     // 2. Adathalmaz bekérése
     println("Kérem az adathalmaz nevét (pontosan úgy, ahogy a mappa neve szerepel, pl. 'szoveg.txt'):")
-    var datasetName = readln().trim()
+    val datasetName = readln().trim()
 
     // 3. Adatok beolvasása a memóriába
     val layoutData = try {
@@ -55,7 +54,7 @@ fun launchCompleteLayoutAnalysis() {
     val corpusData = CorpusData.loadFromDataset(datasetName)
 
     println("\n==================================================")
-    println("ELEMZÉS INDÍTÁSA: ${layoutData.name} (Adathalmaz: $datasetName)")
+    println("ELEMZÉS INDÍTÁSA: ${layoutData.name} (Adathalmaz: $datasetName, Mappa: $folder)")
     println("==================================================")
 
     // 4. Elemző motor meghívása beszédes (verbose) módban
@@ -65,6 +64,31 @@ fun launchCompleteLayoutAnalysis() {
     println("MINDEN ELEMZÉS SIKERESEN BEFEJEZŐDÖTT!")
     println("Összesített Effort: ${String.format("%.4f", result.totalEffort)}")
     println("==================================================")
+}
+
+/**
+ * Billentyűzet-elemző függvény, amely paraméterként kapja meg, hogy a "keyboards"
+ * vagy a "generatedkeyboards" mappában keresse meg az elemzendő kiosztást.
+ */
+fun completeLayoutAnalysis(
+    layoutName: String,
+    datasetName: String,
+    folder: String = "keyboards",
+    verbose: Boolean = true
+): LayoutAnalysisResult? {
+    val layoutFile = LayoutParser.resolveLayoutFile(layoutName, folder)
+    if (layoutFile == null || !layoutFile.exists()) {
+        println("Hiba: A billentyűzet fájl nem található a '$folder' mappában ($layoutName).")
+        return null
+    }
+    val layoutData = try {
+        LayoutParser.parseLayout(layoutFile)
+    } catch (e: Exception) {
+        println("Hiba a billentyűzet beolvasásakor: ${e.message}")
+        return null
+    }
+    val corpusData = CorpusData.loadFromDataset(datasetName)
+    return completeLayoutAnalysis(layoutData, corpusData, verbose)
 }
 
 // 2. MAGFÜGGVÉNY / MOTOR (A Simulated Annealing és a launch hívja)

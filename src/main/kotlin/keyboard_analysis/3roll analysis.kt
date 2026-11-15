@@ -3,32 +3,34 @@ package keyboard_analysis
 import java.io.File
 
 
-fun launch3RollAnalysis() {
-    println("Kérem az elemzendő billentyűzetkiosztás nevét (a keyboards mappából):")
-    var layoutName = readln().trim()
-    if (!layoutName.endsWith(".yaml")) layoutName += ".yaml"
-
-    val layoutFile = File("keyboards/$layoutName")
-    if (!layoutFile.exists()) {
-        println("Hiba: A billentyűzet fájl nem található ($layoutFile).")
-        return
-    }
+fun launch3RollAnalysis(folder: String = "keyboards") {
+    println("Kérem az elemzendő billentyűzetkiosztás nevét (a $folder mappából):")
+    val layoutName = readln().trim()
 
     println("Kérem az adathalmaz nevét (pontosan úgy, ahogy a mappa neve szerepel, pl. 'szoveg.txt'):")
-    var datasetName = readln().trim()
-    if (!datasetName.endsWith(".txt")) datasetName += ".txt"
+    val datasetName = readln().trim()
+
+    run3RollAnalysis(layoutName, datasetName, folder)
+}
+
+fun run3RollAnalysis(layoutName: String, datasetName: String, folder: String = "keyboards"): Double? {
+    val layoutFile = LayoutParser.resolveLayoutFile(layoutName, folder)
+    if (layoutFile == null || !layoutFile.exists()) {
+        println("Hiba: A billentyűzet fájl nem található a '$folder' mappában ($layoutName).")
+        return null
+    }
 
     val layoutData = try {
         LayoutParser.parseLayout(layoutFile)
     } catch (e: Exception) {
         println("Hiba a billentyűzet beolvasásakor: ${e.message}")
-        return
+        return null
     }
 
     val corpusData = CorpusData.loadFromDataset(datasetName)
     if (corpusData.trigrams.isEmpty()) {
         println("Hiba: A trigram gyakorisági adatok nem töltődtek be.")
-        return
+        return null
     }
 
     // 1. Kéz- és ujj-hozzárendelés feltérképezése (10 ujj támogatással)
@@ -43,7 +45,7 @@ fun launch3RollAnalysis() {
         }
     }
 
-    threeRollAnalysis(
+    return threeRollAnalysis(
         charMap = charToHandAndFingerMap,
         trigrams = corpusData.trigrams,
         verbose = true,

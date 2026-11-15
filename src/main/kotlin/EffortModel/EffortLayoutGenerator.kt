@@ -5,16 +5,36 @@ import kotlin.math.*
 
 
 
+object EffortGeneratorSettings {
+    var lateralPenaltyPx: Double = 2.2
+    var distancePenaltyPd: Double = 1.3
+    var activationMargin: Double = 0.3
+    var boxInKeySpace: Boolean = false
+    var biomechanicalWallMultiplierY: Double = 25.0
+    var biomechanicalWallMultiplierX: Double = 5.5
+    var overrideApplyStaticFingerOffsets: Boolean? = null // null = automatikus (staggerType != COLUMNAR_STAGGER)
+
+    fun resetDefaults() {
+        lateralPenaltyPx = 2.2
+        distancePenaltyPd = 1.3
+        activationMargin = 0.3
+        boxInKeySpace = false
+        biomechanicalWallMultiplierY = 25.0
+        biomechanicalWallMultiplierX = 5.5
+        overrideApplyStaticFingerOffsets = null
+    }
+}
+
 class CustomKeyboardEffortGenerator(
     private val keyboardHalf: KeyboardHalf,
     private val columnConfigs: List<ColumnConfig>,
     private val angleOfApproachDegrees: Double = 0.0, // Osztott billentyűzetnél 0 fok!
-    private val lateralPenaltyPx: Double = 2.2, //2.0 eredetileg
-    private val distancePenaltyPd: Double = 1.3,  //1.3 eredetileg
-    private val activationMargin: Double = 0.3,
+    private val lateralPenaltyPx: Double = EffortGeneratorSettings.lateralPenaltyPx, //2.0 eredetileg
+    private val distancePenaltyPd: Double = EffortGeneratorSettings.distancePenaltyPd,  //1.3 eredetileg
+    private val activationMargin: Double = EffortGeneratorSettings.activationMargin,
     private val useOptimalFingerAssignment: Boolean = false,
-    private val boxInKeySpace: Boolean = false,
-    private val applyStaticFingerOffsets: Boolean = (keyboardHalf.staggerType != StaggerType.COLUMNAR_STAGGER)
+    private val boxInKeySpace: Boolean = EffortGeneratorSettings.boxInKeySpace,
+    private val applyStaticFingerOffsets: Boolean = EffortGeneratorSettings.overrideApplyStaticFingerOffsets ?: (keyboardHalf.staggerType != StaggerType.COLUMNAR_STAGGER)
 ) {
 
     private val handFingers: List<Pair<Int, Finger>> = columnConfigs
@@ -64,8 +84,8 @@ class CustomKeyboardEffortGenerator(
 
         // Ha túllépi a határt, hatványozottan drágul (pl. 3. hatvány).
         // A 10.0 egy szorzó, amit feljebb vihetsz, ha még "keményebb" falat akarsz.
-        val biomechanicalWallY = Math.pow(overreachy, 3.0) * 25.0
-        val biomechanicalWallX = Math.pow(overreachx, 3.0) * 5.5
+        val biomechanicalWallY = Math.pow(overreachy, 3.0) * EffortGeneratorSettings.biomechanicalWallMultiplierY
+        val biomechanicalWallX = Math.pow(overreachx, 3.0) * EffortGeneratorSettings.biomechanicalWallMultiplierX
 
         val pf = finger.baseEffort
         return pf + hypot(pf * fY, lateralPenaltyPx * fX)+ biomechanicalWallY+biomechanicalWallX

@@ -2,35 +2,37 @@ package keyboard_analysis
 
 import java.io.File
 
-fun launchHandBalanceAnalysis() {
-    println("Kérem az elemzendő billentyűzetkiosztás nevét (a keyboards mappából):")
-    var layoutName = readln().trim()
-    if (!layoutName.endsWith(".yaml")) layoutName += ".yaml"
-
-    val layoutFile = File("keyboards/$layoutName")
-    if (!layoutFile.exists()) {
-        println("Hiba: A billentyűzet fájl nem található ($layoutFile).")
-        return
-    }
+fun launchHandBalanceAnalysis(folder: String = "keyboards") {
+    println("Kérem az elemzendő billentyűzetkiosztás nevét (a $folder mappából):")
+    val layoutName = readln().trim()
 
     println("Kérem az adathalmaz nevét (pontosan úgy, ahogy a mappa neve szerepel, pl. 'szoveg.txt'):")
-    var datasetName = readln().trim()
-    if (!datasetName.endsWith(".txt")) datasetName += ".txt"
+    val datasetName = readln().trim()
+
+    runHandBalanceAnalysis(layoutName, datasetName, folder)
+}
+
+fun runHandBalanceAnalysis(layoutName: String, datasetName: String, folder: String = "keyboards"): Pair<Double, Double>? {
+    val layoutFile = LayoutParser.resolveLayoutFile(layoutName, folder)
+    if (layoutFile == null || !layoutFile.exists()) {
+        println("Hiba: A billentyűzet fájl nem található a '$folder' mappában ($layoutName).")
+        return null
+    }
 
     val layoutData = try {
         LayoutParser.parseLayout(layoutFile)
     } catch (e: Exception) {
         println("Hiba a billentyűzet beolvasásakor: ${e.message}")
-        return
+        return null
     }
 
     val corpusData = CorpusData.loadFromDataset(datasetName)
     if (corpusData.letters.isEmpty()) {
         println("Hiba: A karaktergyakorisági adatok nem töltődtek be.")
-        return
+        return null
     }
 
-    handBalanceAnalysis(
+    return handBalanceAnalysis(
         leftChars = layoutData.leftChars,
         rightChars = layoutData.rightChars,
         letters = corpusData.letters, // A szóköz nélküli százalékos térkép!

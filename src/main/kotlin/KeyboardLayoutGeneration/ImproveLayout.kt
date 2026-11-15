@@ -46,9 +46,12 @@ private fun layoutSignature(layout: CombinedLayoutData): String {
 fun parallelImprovement(
     runs: Int = 25,
     keyboardname: String = "ltsnergomini",
-    corpusFileName: String = "huszonkettoHuszonnegyeswikipediahuszonegy.txt"
+    corpusFileName: String = "huszonkettoHuszonnegyeswikipediahuszonegy.txt",
+    iterations: Int = 42000,
+    folder: String = "keyboards"
 ) = runBlocking {
-    val originalYamlFile = File("keyboards/${keyboardname}.yaml")
+    val cleanKeyboardName = keyboardname.removeSuffix(".yaml")
+    val originalYamlFile = LayoutParser.resolveLayoutFile(cleanKeyboardName, folder) ?: File("$folder/${cleanKeyboardName}.yaml")
     val initialLayout = try {
         LayoutParser.parseLayout(originalYamlFile)
     } catch (e: Exception) {
@@ -61,7 +64,7 @@ fun parallelImprovement(
     // Kiszámoljuk, hány szál induljon az eredeti layoutból (N/10, de minimum 1)
     val numOriginalRuns = maxOf(1, runs / 10)
 
-    println("=== SA OPTIMALIZÁLÁS INDÍTÁSA ($runs FUTÁS PÁRHUZAMOSAN) ===")
+    println("=== SA OPTIMALIZÁLÁS INDÍTÁSA ($runs FUTÁS PÁRHUZAMOSAN, $iterations ITERÁCIÓ/SZÁL) ===")
     println("-> $numOriginalRuns futás az eredeti layoutot javítja, ${runs - numOriginalRuns} futás forró keveréssel indul.")
     val startTime = System.currentTimeMillis()
 
@@ -75,6 +78,7 @@ fun parallelImprovement(
             val bestLayoutInRun = improveLayout(
                 initialLayout = initialLayout,
                 corpusData = corpusData,
+                iterations = iterations,
                 applyHotShuffle = useHotShuffle
             )
 

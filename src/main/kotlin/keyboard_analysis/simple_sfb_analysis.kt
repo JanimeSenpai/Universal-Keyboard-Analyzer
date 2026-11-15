@@ -33,32 +33,35 @@ package keyboard_analysis
 import java.io.File
 
 // 1. KONZOLOS INDÍTÓ FÜGGVÉNY (Egyszeri futás, betölti a fájlokat memóriába)
-fun launchSimpleSfbAnalysis() {
-    println("Kérem az elemzendő billentyűzetkiosztás nevét (a keyboards mappából):")
-    var layoutName = readln().trim()
-    if (!layoutName.endsWith(".yaml")) layoutName += ".yaml"
-
-    val layoutFile = File("keyboards/$layoutName")
-    if (!layoutFile.exists()) {
-        println("Hiba: A billentyűzet fájl nem található ($layoutFile).")
-        return
-    }
+fun launchSimpleSfbAnalysis(folder: String = "keyboards") {
+    println("Kérem az elemzendő billentyűzetkiosztás nevét (a $folder mappából):")
+    val layoutName = readln().trim()
 
     println("Kérem az adathalmaz nevét (pl. aminek a mappája az analysis_results-ban van):")
-    var datasetName = readln().trim()
+    val datasetName = readln().trim()
+
+    runSimpleSfbAnalysis(layoutName, datasetName, folder)
+}
+
+fun runSimpleSfbAnalysis(layoutName: String, datasetName: String, folder: String = "keyboards"): Double? {
+    val layoutFile = LayoutParser.resolveLayoutFile(layoutName, folder)
+    if (layoutFile == null || !layoutFile.exists()) {
+        println("Hiba: A billentyűzet fájl nem található a '$folder' mappában ($layoutName).")
+        return null
+    }
 
     // Új architektúra: a teljes parseren és memóriastruktúrán keresztül futtatjuk
     val layoutData = try {
         LayoutParser.parseLayout(layoutFile)
     } catch (e: Exception) {
         println("Hiba a billentyűzet beolvasásakor: ${e.message}")
-        return
+        return null
     }
 
     val corpusData = CorpusData.loadFromDataset(datasetName)
     if (corpusData.bigrams.isEmpty()) {
         println("Hiba: A bigram gyakorisági adatok nem töltődtek be.")
-        return
+        return null
     }
 
     // Előállítjuk a paramétereket az elemzőhöz
@@ -70,12 +73,12 @@ fun launchSimpleSfbAnalysis() {
     }
 
     // Futtatjuk az elemzést (a launch verbose módja mindig true)
-    simpleSfbAnalysis(
+    return simpleSfbAnalysis(
         charToFinger = charToFingerMap,
         bigrams = corpusData.bigrams,
         verbose = true,
         layoutName = layoutData.name,
-        datasetName = datasetName
+        datasetName = corpusData.datasetName
     )
 }
 

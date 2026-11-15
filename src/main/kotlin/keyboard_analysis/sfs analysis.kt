@@ -5,36 +5,38 @@ import kotlin.math.abs
 import kotlin.math.max
 
 
-fun launchSpaceSfs1Analysis() {
-    println("Kérem az elemzendő billentyűzetkiosztás nevét (a keyboards mappából):")
-    var layoutName = readln().trim()
-    if (!layoutName.endsWith(".yaml")) layoutName += ".yaml"
-
-    val layoutFile = File("keyboards/$layoutName")
-    if (!layoutFile.exists()) {
-        println("Hiba: A billentyűzet fájl nem található ($layoutFile).")
-        return
-    }
+fun launchSpaceSfs1Analysis(folder: String = "keyboards") {
+    println("Kérem az elemzendő billentyűzetkiosztás nevét (a $folder mappából):")
+    val layoutName = readln().trim()
 
     println("Kérem az adathalmaz nevét (pontosan úgy, ahogy a mappa neve szerepel, pl. 'szoveg.txt'):")
-    var datasetName = readln().trim()
-    if (!datasetName.endsWith(".txt")) datasetName += ".txt"
+    val datasetName = readln().trim()
+
+    runSpaceSfs1Analysis(layoutName, datasetName, folder)
+}
+
+fun runSpaceSfs1Analysis(layoutName: String, datasetName: String, folder: String = "keyboards"): Double? {
+    val layoutFile = LayoutParser.resolveLayoutFile(layoutName, folder)
+    if (layoutFile == null || !layoutFile.exists()) {
+        println("Hiba: A billentyűzet fájl nem található a '$folder' mappában ($layoutName).")
+        return null
+    }
 
     val layoutData = try {
         LayoutParser.parseLayout(layoutFile)
     } catch (e: Exception) {
         println("Hiba a billentyűzet beolvasásakor: ${e.message}")
-        return
+        return null
     }
 
     val corpusData = CorpusData.loadFromDataset(datasetName)
 
     if (corpusData.spaceIncludedTrigrams.isEmpty()) {
         println("Hiba: A szóközös trigram fájl nem található. Futtasd le előbb az 'sta' parancsot!")
-        return
+        return null
     }
 
-    spaceSfs1Analysis(layoutData, corpusData, verbose = true)
+    return spaceSfs1Analysis(layoutData, corpusData, verbose = true)
 }
 
 fun spaceSfs1Analysis(

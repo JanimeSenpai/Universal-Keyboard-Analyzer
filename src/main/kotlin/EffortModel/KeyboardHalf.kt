@@ -19,17 +19,27 @@ enum class StaggerType {
  * - homeOffsetY: Függőleges eltolás az alapsori gomb középpontjától (+ felfelé, - lefelé)
  */
 enum class Finger(
-    val baseEffort: Double,
-    val homeOffsetX: Double,
-    val homeOffsetY: Double,
-    val maxComfortReachY: Double, // <-- ÚJ: Fizikai ujjhossz korlát (Unit-ban)
-    val maxComfortReachX: Double
+    var baseEffort: Double,
+    var homeOffsetX: Double,
+    var homeOffsetY: Double,
+    var maxComfortReachY: Double, // <-- ÚJ: Fizikai ujjhossz korlát (Unit-ban)
+    var maxComfortReachX: Double
 ) {
     THUMB(baseEffort = 1.0, homeOffsetX = 0.0, homeOffsetY = 0.0, maxComfortReachY = 1.5, maxComfortReachX = 1.1),
     INDEX(baseEffort = 1.0, homeOffsetX = -0.04, homeOffsetY = -0.32, maxComfortReachY = 0.8, maxComfortReachX = 0.8),
     MIDDLE(baseEffort = 1.1, homeOffsetX = 0.03, homeOffsetY = 0.16, maxComfortReachY = 1.4848, maxComfortReachX = 0.8), // Leghosszabb
     RING(baseEffort = 1.3, homeOffsetX = 0.00, homeOffsetY = 0.14, maxComfortReachY = 1.25, maxComfortReachX = 0.8),
-    PINKY(baseEffort = 1.6, homeOffsetX = 0.01, homeOffsetY = -0.15, maxComfortReachY = 0.8, maxComfortReachX = 1.1) // Legrövidebb, hamar "falba ütközik"
+    PINKY(baseEffort = 1.6, homeOffsetX = 0.01, homeOffsetY = -0.15, maxComfortReachY = 0.8, maxComfortReachX = 1.1); // Legrövidebb, hamar "falba ütközik"
+
+    companion object {
+        fun resetDefaults() {
+            THUMB.apply { baseEffort = 1.0; homeOffsetX = 0.0; homeOffsetY = 0.0; maxComfortReachY = 1.5; maxComfortReachX = 1.1 }
+            INDEX.apply { baseEffort = 1.0; homeOffsetX = -0.04; homeOffsetY = -0.32; maxComfortReachY = 0.8; maxComfortReachX = 0.8 }
+            MIDDLE.apply { baseEffort = 1.1; homeOffsetX = 0.03; homeOffsetY = 0.16; maxComfortReachY = 1.4848; maxComfortReachX = 0.8 }
+            RING.apply { baseEffort = 1.3; homeOffsetX = 0.00; homeOffsetY = 0.14; maxComfortReachY = 1.25; maxComfortReachX = 0.8 }
+            PINKY.apply { baseEffort = 1.6; homeOffsetX = 0.01; homeOffsetY = -0.15; maxComfortReachY = 0.8; maxComfortReachX = 1.1 }
+        }
+    }
 }
 
 data class ColumnConfig(

@@ -324,4 +324,33 @@ object LayoutParser {
         "T" -> Finger.THUMB
         else -> throw IllegalArgumentException("Invalid layout error: Ismeretlen ujj kód a konfigurációban: '$code'. Elfogadott értékek: P, R, M, I, T.")
     }
+
+    /**
+     * Megkeresi a billentyűzet YAML fájlt a megadott mappában ("keyboards" vagy "generatedkeyboards").
+     * Támogatja az almappás útvonalat (pl. "LTSN_Ergo_Mini_CNS-.../LTSN_Ergo_Mini_cns_optimized_1.yaml")
+     * és a sima fájlnevet is (rekurzív kereséssel a megadott mappán belül).
+     */
+    fun resolveLayoutFile(layoutName: String, folder: String = "keyboards"): File? {
+        var cleanName = layoutName.trim()
+        if (!cleanName.endsWith(".yaml")) cleanName += ".yaml"
+
+        // 1. Ha teljes vagy közvetlenül létező útvonalat kapott
+        val directFile = File(cleanName)
+        if (directFile.exists() && directFile.isFile) return directFile
+
+        // 2. A megadott mappán belüli relatív útvonal (pl. keyboards/foo.yaml vagy generatedkeyboards/sub/foo.yaml)
+        val inFolder = File(folder, cleanName)
+        if (inFolder.exists() && inFolder.isFile) return inFolder
+
+        // 3. Ha a generatedkeyboards (vagy más) mappában csak a fájlnevet adták meg almappa nélkül, megkeressük rekurzívan
+        val baseDir = File(folder)
+        if (baseDir.exists() && baseDir.isDirectory) {
+            val found = baseDir.walkTopDown().firstOrNull {
+                it.isFile && (it.name.equals(cleanName, ignoreCase = true) || it.nameWithoutExtension.equals(layoutName.trim(), ignoreCase = true))
+            }
+            if (found != null) return found
+        }
+
+        return null
+    }
 }

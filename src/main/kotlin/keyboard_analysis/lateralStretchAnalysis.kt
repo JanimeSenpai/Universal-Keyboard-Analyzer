@@ -3,38 +3,40 @@ package keyboard_analysis
 
 import java.io.File
 
-fun launchLateralStretchAnalysis() {
-    println("Kérem az elemzendő billentyűzetkiosztás nevét (a keyboards mappából):")
-    var layoutName = readln().trim()
-    if (!layoutName.endsWith(".yaml")) layoutName += ".yaml"
-
-    val layoutFile = File("keyboards/$layoutName")
-    if (!layoutFile.exists()) {
-        println("Hiba: A billentyűzet fájl nem található ($layoutFile).")
-        return
-    }
+fun launchLateralStretchAnalysis(folder: String = "keyboards") {
+    println("Kérem az elemzendő billentyűzetkiosztás nevét (a $folder mappából):")
+    val layoutName = readln().trim()
 
     println("Kérem az adathalmaz nevét (pontosan úgy, ahogy a mappa neve szerepel, pl. 'szoveg.txt'):")
-    var datasetName = readln().trim()
-    if (!datasetName.endsWith(".txt")) datasetName += ".txt"
+    val datasetName = readln().trim()
+
+    runLateralStretchAnalysis(layoutName, datasetName, folder)
+}
+
+fun runLateralStretchAnalysis(layoutName: String, datasetName: String, folder: String = "keyboards"): Double? {
+    val layoutFile = LayoutParser.resolveLayoutFile(layoutName, folder)
+    if (layoutFile == null || !layoutFile.exists()) {
+        println("Hiba: A billentyűzet fájl nem található a '$folder' mappában ($layoutName).")
+        return null
+    }
 
     val layoutData = try {
         LayoutParser.parseLayout(layoutFile)
     } catch (e: Exception) {
         println("Hiba a billentyűzet beolvasásakor: ${e.message}")
-        return
+        return null
     }
 
     val corpusData = CorpusData.loadFromDataset(datasetName)
     if (corpusData.bigrams.isEmpty()) {
         println("Hiba: A bigram gyakorisági adatok nem töltődtek be.")
-        return
+        return null
     }
 
     // 1. Kéz, Ujj és Koordináta hozzárendelés feltérképezése a közös függvénnyel
     val charToPos = buildCharPositionMap(layoutData)
 
-    lateralStretchAnalysis(
+    return lateralStretchAnalysis(
         charPositions = charToPos,
         bigrams = corpusData.bigrams,
         verbose = true,

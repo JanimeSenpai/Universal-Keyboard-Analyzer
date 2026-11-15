@@ -11,47 +11,71 @@ import kotlin.math.pow
 import kotlin.random.Random
 
 // --- 1. BÜNTETŐ SÚLYOK (Minimalizálandó értékek -> növelik a Total Effortot) ---
-val weightCharReachEffort = 40.0
-val weightHandImbalance = 4.0
+var weightCharReachEffort = 40.0
+var weightHandImbalance = 4.0
 
 // Cél: < 4-6%
-val weightPinkyOff = 2.0
+var weightPinkyOff = 2.0
 
 // Cél: < 1-1.5%
-val weightSfb = 15.0  //original 10
+var weightSfb = 15.0  //original 10
 
 // Cél: < 0.5% (ÚJ)
-val weightFullScissor = 15.0  //original 15
-val weightHalfScissor = weightFullScissor / 2 //original :2
+var weightFullScissor = 15.0  //original 15
+var weightHalfScissor = weightFullScissor / 2 //original :2
 
 // Cél: < 1.5-2% (ÚJ)
-val weightLateralStretch = 8.0
-val weightPinkyStretch = 8.0
+var weightLateralStretch = 8.0
+var weightPinkyStretch = 8.0
 
 // Cél: < 2-3%
-val weightRedirect = 4.0
+var weightRedirect = 4.0
 
-val weightSpaceSfs1 = 2.0
+var weightSpaceSfs1 = 2.0
 
-val weightGravity = 0.5
+var weightGravity = 0.5
 
 // Soronkénti terhelés súlyai (0: legfelső sor ... 5: thumb sor)
 //TODO megvalósítani, hogy magától tudja a program, hogy hány soros ez a billentyűzet és annak függvényében kiosztani ezeket a büntetőpontokat
 //az ujjak hossza bekerült a fizikai layout effort modellbe, így egyelőre ezek az értékek 0 súlyt kapnak
-val weightRow0 = 0.0
-val weightRow1 = 0.0
-val weightRow2 = 0.0
-val weightRow3 = 0.0 // Home row (ezt külön jutalmazzuk lent)
-val weightRow4 = 0.0
-val weightRow5 = 0.0 // Thumb row
+var weightRow0 = 0.0
+var weightRow1 = 0.0
+var weightRow2 = 0.0
+var weightRow3 = 0.0 // Home row (ezt külön jutalmazzuk lent)
+var weightRow4 = 0.0
+var weightRow5 = 0.0 // Thumb row
 
 // --- 2. JUTALMAZÓ SÚLYOK (Maximalizálandó értékek -> csökkentik a Total Effortot) ---
-val weightHomeRow = 0.86
+var weightHomeRow = 0.86
 
 // Cél: minél magasabb, együttesen > 40-50%
-val weightAlternation = 1.0
-val weightRoll = 1.3
-val weightThreeRoll = 1.6
+var weightAlternation = 1.0
+var weightRoll = 1.3
+var weightThreeRoll = 1.6
+
+fun resetDefaultWeights() {
+    weightCharReachEffort = 40.0
+    weightHandImbalance = 4.0
+    weightPinkyOff = 2.0
+    weightSfb = 15.0
+    weightFullScissor = 15.0
+    weightHalfScissor = 7.5
+    weightLateralStretch = 8.0
+    weightPinkyStretch = 8.0
+    weightRedirect = 4.0
+    weightSpaceSfs1 = 2.0
+    weightGravity = 0.5
+    weightRow0 = 0.0
+    weightRow1 = 0.0
+    weightRow2 = 0.0
+    weightRow3 = 0.0
+    weightRow4 = 0.0
+    weightRow5 = 0.0
+    weightHomeRow = 0.86
+    weightAlternation = 1.0
+    weightRoll = 1.3
+    weightThreeRoll = 1.6
+}
 
 /**
  * Kiszámítja a billentyűzetkiosztás összesített jósági/terhelési mutatóját (Célfüggvény).

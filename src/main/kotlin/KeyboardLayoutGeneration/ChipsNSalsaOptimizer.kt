@@ -292,9 +292,11 @@ fun parallelChipsNSalsaImprovement(
     keyboardname: String = "ltsnergomini",
     corpusFileName: String = "huszonkettoHuszonnegyeswikipediahuszonegy.txt",
     leftThumbEnabled: Boolean = false,
-    rightThumbEnabled: Boolean = false
+    rightThumbEnabled: Boolean = false,
+    folder: String = "keyboards"
 ) = runBlocking {
-    val originalYamlFile = File("keyboards/${keyboardname}.yaml")
+    val cleanKeyboardName = keyboardname.removeSuffix(".yaml")
+    val originalYamlFile = LayoutParser.resolveLayoutFile(cleanKeyboardName, folder) ?: File("$folder/${cleanKeyboardName}.yaml")
     val initialLayout = try {
         LayoutParser.parseLayout(originalYamlFile)
     } catch (e: Exception) {

@@ -18,7 +18,12 @@ import keyboard_analysis.launchRollAnalysis
 import keyboard_analysis.launchRowUsageAnalysis
 import keyboard_analysis.launchSimpleSfbAnalysis
 import keyboard_analysis.launchSpaceSfs1Analysis
+import keyboard_analysis.launchFullScissorAnalysis
+import keyboard_analysis.launchHalfScissorAnalysis
+import keyboard_analysis.launchLateralStretchAnalysis
+import keyboard_analysis.launchPinkyStretchAnalysis
 import keyboard_analysis.layoutSandbox
+import gui.launchGui
 import kotlin.system.exitProcess
 
 fun main() {
@@ -29,7 +34,7 @@ val currentLocale: Locale = Locale.HU
 
 fun commandLineInterface(){
     println("this is the command line interface of corpora analyzer")
-    println("for available commands enter \"commands\"")
+    println("for available commands enter \"commands\" (or \"gui\" to launch the graphical user interface)")
     readcommands()
 
 }
@@ -42,6 +47,7 @@ fun readcommands(){
     }else{
         when(command){
             "commands" -> listcommands()
+            "gui" -> launchGui()
             "CorpusAnalyzer.preprocess file"-> preprocess()
             "pf"-> preprocess()
             "letter frequency"->{
@@ -78,6 +84,10 @@ fun readcommands(){
             "gcsv" -> launchGenerateSummaryCsv()
             "po" -> launchPinkyOffAnalysis()
             "pinky off" -> launchPinkyOffAnalysis()
+            "lsb" -> launchLateralStretchAnalysis()
+            "psb" -> launchPinkyStretchAnalysis()
+            "fsb" -> launchFullScissorAnalysis()
+            "hsb" -> launchHalfScissorAnalysis()
             "layoutsandbox" -> layoutSandbox()
             "exit"-> exitProcess(0)
         }
@@ -89,7 +99,8 @@ fun readcommands(){
 }
 
 fun listcommands(){
-    println("\"CorpusAnalyzer.preprocess file\"-> preprocess()\n" +
+    println("\"gui\" -> launchGui()\n" +
+            "\"CorpusAnalyzer.preprocess file\"-> preprocess()\n" +
             "\"pf\"-> preprocess()\n" +
             "\"letter frequency\"->{\n  launchletterfrequency()\n" +
             "\"lf\"->launchletterfrequency()\n" +

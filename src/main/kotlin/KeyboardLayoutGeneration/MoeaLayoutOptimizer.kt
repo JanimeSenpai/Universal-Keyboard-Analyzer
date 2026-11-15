@@ -343,9 +343,11 @@ fun parallelMoeaImprovement(
     keyboardname: String = "ltsnergomini",
     corpusFileName: String = "huszonkettoHuszonnegyeswikipediahuszonegy.txt",
     leftThumbEnabled: Boolean = false,  // Jelenleg kikapcsolva: thumb_left nem kap betűt
-    rightThumbEnabled: Boolean = false  // Jelenleg kikapcsolva: thumb_right nem kap betűt
+    rightThumbEnabled: Boolean = false, // Jelenleg kikapcsolva: thumb_right nem kap betűt
+    folder: String = "keyboards"
 ) = runBlocking {
-    val originalYamlFile = File("keyboards/${keyboardname}.yaml")
+    val cleanKeyboardName = keyboardname.removeSuffix(".yaml")
+    val originalYamlFile = LayoutParser.resolveLayoutFile(cleanKeyboardName, folder) ?: File("$folder/${cleanKeyboardName}.yaml")
     val initialLayout = try {
         LayoutParser.parseLayout(originalYamlFile)
     } catch (e: Exception) {
