@@ -71,11 +71,23 @@ private val DarkColorScheme = darkColorScheme(
     outline = Color(0xFF475569)
 )
 
+enum class AppLanguage {
+    HU, EN;
+
+    fun pick(hu: String, en: String): String = if (this == HU) hu else en
+}
+
+val LocalAppLanguage = compositionLocalOf { AppLanguage.HU }
+
+@Composable
+fun tr(hu: String, en: String): String = if (LocalAppLanguage.current == AppLanguage.HU) hu else en
+
 val LocalIsDarkTheme = compositionLocalOf { false }
 
 @Composable
 fun KeyboardAnalyzerTheme(
     darkTheme: Boolean,
+    language: AppLanguage = AppLanguage.HU,
     content: @Composable () -> Unit
 ) {
     val scheme = if (darkTheme) DarkColorScheme else LightColorScheme
@@ -90,6 +102,7 @@ fun KeyboardAnalyzerTheme(
     MaterialTheme(colorScheme = scheme) {
         CompositionLocalProvider(
             LocalIsDarkTheme provides darkTheme,
+            LocalAppLanguage provides language,
             LocalScrollbarStyle provides scrollbarStyle,
             content = content
         )
@@ -420,7 +433,10 @@ fun HeatmapViewerCard(
                 if (imageBitmap != null) {
                     Text(
                         text = if (fitMode) {
-                            "Illesztve (${imageBitmap.width}×${imageBitmap.height} px)"
+                            tr(
+                                "Illesztve (${imageBitmap.width}×${imageBitmap.height} px)",
+                                "Fit (${imageBitmap.width}×${imageBitmap.height} px)"
+                            )
                         } else {
                             "Zoom: ${(zoom * 100).roundToInt()}% (${imageBitmap.width}×${imageBitmap.height} px)"
                         },
@@ -433,7 +449,7 @@ fun HeatmapViewerCard(
                     contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
                     modifier = Modifier.height(30.dp)
                 ) {
-                    Text("Illesztés", fontSize = 11.sp)
+                    Text(tr("Illesztés", "Fit"), fontSize = 11.sp)
                 }
                 FilledTonalButton(
                     onClick = {
@@ -452,7 +468,7 @@ fun HeatmapViewerCard(
                     },
                     modifier = Modifier.size(30.dp)
                 ) {
-                    Icon(Icons.Default.Remove, contentDescription = "Kicsinyítés", modifier = Modifier.size(16.dp))
+                    Icon(Icons.Default.Remove, contentDescription = tr("Kicsinyítés", "Zoom Out"), modifier = Modifier.size(16.dp))
                 }
                 IconButton(
                     onClick = {
@@ -461,7 +477,7 @@ fun HeatmapViewerCard(
                     },
                     modifier = Modifier.size(30.dp)
                 ) {
-                    Icon(Icons.Default.Add, contentDescription = "Nagyítás", modifier = Modifier.size(16.dp))
+                    Icon(Icons.Default.Add, contentDescription = tr("Nagyítás", "Zoom In"), modifier = Modifier.size(16.dp))
                 }
                 if (imageFile != null && imageFile.exists()) {
                     OutlinedButton(
@@ -475,7 +491,7 @@ fun HeatmapViewerCard(
                     ) {
                         Icon(Icons.Default.OpenInNew, contentDescription = null, modifier = Modifier.size(14.dp))
                         Spacer(Modifier.width(4.dp))
-                        Text("Külső megnyitás", fontSize = 11.sp)
+                        Text(tr("Külső megnyitás", "Open Externally"), fontSize = 11.sp)
                     }
                 }
             }

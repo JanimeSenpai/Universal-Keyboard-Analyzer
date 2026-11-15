@@ -55,15 +55,20 @@ fun launchComposeGui() {
 }
 
 private enum class MainTab(
-    val title: String,
-    val shortTitle: String,
+    val titleHu: String,
+    val titleEn: String,
+    val shortTitleHu: String,
+    val shortTitleEn: String,
     val icon: ImageVector
 ) {
-    CORPUS("1. Korpusz elemző eszközök", "Korpusz", Icons.Default.MenuBook),
-    LAYOUT("2. Layout elemző eszközök", "Layout", Icons.Default.Keyboard),
-    EFFORT("3. Fizikai effort modell", "Effort modell", Icons.Default.PanTool),
-    GENERATION("4. Layout generálás", "Generálás", Icons.Default.AutoFixHigh),
-    BROWSER("5. Generált layoutok böngészése", "Böngésző", Icons.Default.FolderSpecial)
+    CORPUS("1. Korpusz elemző eszközök", "1. Corpus Analysis Tools", "Korpusz", "Corpus", Icons.Default.MenuBook),
+    LAYOUT("2. Layout elemző eszközök", "2. Layout Analysis Tools", "Layout", "Layout", Icons.Default.Keyboard),
+    EFFORT("3. Fizikai effort modell", "3. Physical Effort Model", "Effort modell", "Effort Model", Icons.Default.PanTool),
+    GENERATION("4. Layout generálás", "4. Layout Generation", "Generálás", "Generation", Icons.Default.AutoFixHigh),
+    BROWSER("5. Generált layoutok böngészése", "5. Browse Generated Layouts", "Böngésző", "Browser", Icons.Default.FolderSpecial);
+
+    fun title(lang: AppLanguage): String = lang.pick(titleHu, titleEn)
+    fun shortTitle(lang: AppLanguage): String = lang.pick(shortTitleHu, shortTitleEn)
 }
 
 private fun isWindowsAppsDarkTheme(): Boolean? {
@@ -100,11 +105,13 @@ fun FrameWindowScope.ComposeAppRoot(
 ) {
     val systemInDark = isSystemInDarkTheme()
     var darkTheme by remember { mutableStateOf(isWindowsAppsDarkTheme() ?: systemInDark) }
+    var language by remember { mutableStateOf(AppLanguage.HU) }
     var selectedTab by remember { mutableStateOf(MainTab.CORPUS) }
     var isRunningTask by remember { mutableStateOf(false) }
-    var statusMessage by remember { mutableStateOf("Kész.") }
+    var statusMessageHu by remember { mutableStateOf("Kész.") }
+    var statusMessageEn by remember { mutableStateOf("Ready.") }
     var consoleExpanded by remember { mutableStateOf(true) }
-    var consoleText by remember { mutableStateOf("=== Universal Keyboard Analyzer — Élő Konzol ===\n") }
+    var consoleText by remember { mutableStateOf("=== Universal Keyboard Analyzer — Live Console ===\n") }
 
     val coroutineScope = rememberCoroutineScope()
     val consoleScrollState = rememberScrollState()
@@ -168,21 +175,29 @@ fun FrameWindowScope.ComposeAppRoot(
 
     val runBackgroundTask: (String, suspend () -> Unit) -> Unit = { taskName, block ->
         if (isRunningTask) {
-            println("[INFO] Egy művelet már fut a háttérben, kérlek várj...")
+            println(
+                language.pick(
+                    "[INFO] Egy művelet már fut a háttérben, kérlek várj...",
+                    "[INFO] A task is already running in the background, please wait..."
+                )
+            )
         } else {
             isRunningTask = true
-            statusMessage = "Folyamatban: $taskName..."
-            println("\n>>> INDÍTÁS: $taskName <<<")
+            statusMessageHu = "Folyamatban: $taskName..."
+            statusMessageEn = "Running: $taskName..."
+            println("\n>>> ${language.pick("INDÍTÁS", "START")}: $taskName <<<")
             coroutineScope.launch {
                 try {
                     withContext(Dispatchers.IO) {
                         block()
                     }
-                    statusMessage = "Befejezve: $taskName"
-                    println(">>> KÉSZ: $taskName <<<")
+                    statusMessageHu = "Befejezve: $taskName"
+                    statusMessageEn = "Completed: $taskName"
+                    println(">>> ${language.pick("KÉSZ", "DONE")}: $taskName <<<")
                 } catch (e: Throwable) {
                     e.printStackTrace()
-                    statusMessage = "Hiba történt: ${e.message}"
+                    statusMessageHu = "Hiba történt: ${e.message}"
+                    statusMessageEn = "Error: ${e.message}"
                 } finally {
                     isRunningTask = false
                 }
@@ -190,7 +205,7 @@ fun FrameWindowScope.ComposeAppRoot(
         }
     }
 
-    KeyboardAnalyzerTheme(darkTheme = darkTheme) {
+    KeyboardAnalyzerTheme(darkTheme = darkTheme, language = language) {
         Surface(
             modifier = Modifier.fillMaxSize(),
             color = MaterialTheme.colorScheme.background
@@ -234,10 +249,10 @@ fun FrameWindowScope.ComposeAppRoot(
                         NavigationRailItem(
                             selected = selectedTab == tab,
                             onClick = { selectedTab = tab },
-                            icon = { Icon(tab.icon, contentDescription = tab.title) },
+                            icon = { Icon(tab.icon, contentDescription = tab.title(language)) },
                             label = {
                                 Text(
-                                    text = tab.shortTitle,
+                                    text = tab.shortTitle(language),
                                     fontSize = 11.sp,
                                     fontWeight = if (selectedTab == tab) FontWeight.Bold else FontWeight.Normal
                                 )
@@ -249,11 +264,11 @@ fun FrameWindowScope.ComposeAppRoot(
                     Spacer(Modifier.weight(1f))
                     IconButton(
                         onClick = { consoleExpanded = !consoleExpanded },
-                        modifier = Modifier.padding(bottom = 4.dp)
+                        modifier = Modifier.padding(bottom = 2.dp)
                     ) {
                         Icon(
                             imageVector = Icons.Default.Terminal,
-                            contentDescription = if (consoleExpanded) "Konzol elrejtése" else "Konzol megnyitása",
+                            contentDescription = if (consoleExpanded) tr("Konzol elrejtése", "Hide Console") else tr("Konzol megnyitása", "Show Console"),
                             tint = if (consoleExpanded) {
                                 MaterialTheme.colorScheme.primary
                             } else {
@@ -263,13 +278,57 @@ fun FrameWindowScope.ComposeAppRoot(
                     }
                     IconButton(
                         onClick = { darkTheme = !darkTheme },
-                        modifier = Modifier.padding(bottom = 12.dp)
+                        modifier = Modifier.padding(bottom = 6.dp)
                     ) {
                         Icon(
                             imageVector = if (darkTheme) Icons.Default.LightMode else Icons.Default.DarkMode,
-                            contentDescription = "Téma váltása",
+                            contentDescription = tr("Téma váltása", "Toggle Theme"),
                             tint = MaterialTheme.colorScheme.onSurfaceVariant
                         )
+                    }
+
+                    // Bal alsó sarok: Nyelv kapcsoló (HU / EN)
+                    Surface(
+                        shape = RoundedCornerShape(10.dp),
+                        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.75f),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)),
+                        modifier = Modifier
+                            .padding(bottom = 12.dp)
+                            .clickable {
+                                language = if (language == AppLanguage.HU) AppLanguage.EN else AppLanguage.HU
+                            }
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Text(
+                                text = "HU",
+                                fontSize = 11.sp,
+                                fontWeight = if (language == AppLanguage.HU) FontWeight.ExtraBold else FontWeight.Normal,
+                                color = if (language == AppLanguage.HU) {
+                                    MaterialTheme.colorScheme.primary
+                                } else {
+                                    MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.65f)
+                                }
+                            )
+                            Text(
+                                text = "/",
+                                fontSize = 11.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                            )
+                            Text(
+                                text = "EN",
+                                fontSize = 11.sp,
+                                fontWeight = if (language == AppLanguage.EN) FontWeight.ExtraBold else FontWeight.Normal,
+                                color = if (language == AppLanguage.EN) {
+                                    MaterialTheme.colorScheme.primary
+                                } else {
+                                    MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.65f)
+                                }
+                            )
+                        }
                     }
                 }
 
@@ -301,7 +360,7 @@ fun FrameWindowScope.ComposeAppRoot(
                                         )
                                         Spacer(Modifier.width(10.dp))
                                         Text(
-                                            text = selectedTab.title,
+                                            text = selectedTab.title(language),
                                             style = MaterialTheme.typography.titleLarge.copy(
                                                 fontWeight = FontWeight.Bold
                                             )
@@ -332,7 +391,7 @@ fun FrameWindowScope.ComposeAppRoot(
                                                     Spacer(Modifier.width(8.dp))
                                                 }
                                                 Text(
-                                                    text = statusMessage,
+                                                    text = language.pick(statusMessageHu, statusMessageEn),
                                                     style = MaterialTheme.typography.labelMedium
                                                 )
                                             }
@@ -350,7 +409,7 @@ fun FrameWindowScope.ComposeAppRoot(
                                             )
                                             Spacer(Modifier.width(6.dp))
                                             Text(
-                                                text = if (consoleExpanded) "Konzol elrejtése" else "Konzol megnyitása",
+                                                text = if (consoleExpanded) tr("Konzol elrejtése", "Hide Console") else tr("Konzol megnyitása", "Show Console"),
                                                 fontSize = 12.sp
                                             )
                                         }
@@ -367,7 +426,7 @@ fun FrameWindowScope.ComposeAppRoot(
                                         ) {
                                             Icon(
                                                 imageVector = Icons.Default.Remove,
-                                                contentDescription = "Kis méret (Tálcára)",
+                                                contentDescription = tr("Kis méret (Tálcára)", "Minimize"),
                                                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                                                 modifier = Modifier.size(18.dp)
                                             )
@@ -387,7 +446,7 @@ fun FrameWindowScope.ComposeAppRoot(
                                         ) {
                                             Icon(
                                                 imageVector = if (isMaximized) Icons.Default.FilterNone else Icons.Default.CropSquare,
-                                                contentDescription = if (isMaximized) "Előző méret" else "Teljes képernyő",
+                                                contentDescription = if (isMaximized) tr("Előző méret", "Restore") else tr("Teljes képernyő", "Maximize"),
                                                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                                                 modifier = Modifier.size(17.dp)
                                             )
@@ -400,7 +459,7 @@ fun FrameWindowScope.ComposeAppRoot(
                                         ) {
                                             Icon(
                                                 imageVector = Icons.Default.Close,
-                                                contentDescription = "Bezárás",
+                                                contentDescription = tr("Bezárás", "Close"),
                                                 tint = MaterialTheme.colorScheme.error,
                                                 modifier = Modifier.size(19.dp)
                                             )
@@ -464,7 +523,7 @@ fun FrameWindowScope.ComposeAppRoot(
                                         )
                                         Spacer(Modifier.width(8.dp))
                                         Text(
-                                            text = "Élő Konzol Kimenet (System.out / System.err)",
+                                            text = tr("Élő Konzol Kimenet (System.out / System.err)", "Live Console Output (System.out / System.err)"),
                                             style = MaterialTheme.typography.labelMedium.copy(
                                                 fontWeight = FontWeight.Bold,
                                                 color = consoleHeaderTitleColor
@@ -487,7 +546,7 @@ fun FrameWindowScope.ComposeAppRoot(
                                                 modifier = Modifier.size(15.dp)
                                             )
                                             Spacer(Modifier.width(4.dp))
-                                            Text("Konzol elrejtése", fontSize = 11.sp, color = consoleActionTint)
+                                            Text(tr("Konzol elrejtése", "Hide Console"), fontSize = 11.sp, color = consoleActionTint)
                                         }
                                         TextButton(
                                             onClick = { consoleText = "" },
@@ -501,7 +560,7 @@ fun FrameWindowScope.ComposeAppRoot(
                                                 modifier = Modifier.size(15.dp)
                                             )
                                             Spacer(Modifier.width(4.dp))
-                                            Text("Törlés", fontSize = 11.sp, color = consoleActionTint)
+                                            Text(tr("Törlés", "Clear"), fontSize = 11.sp, color = consoleActionTint)
                                         }
                                     }
                                 }

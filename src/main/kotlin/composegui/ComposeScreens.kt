@@ -24,6 +24,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import keyboard_analysis.*
+import kotlinx.coroutines.delay
 import java.io.File
 import java.nio.charset.StandardCharsets
 
@@ -32,7 +33,7 @@ import java.nio.charset.StandardCharsets
 // =========================================================================
 
 private sealed interface CorpusTableEntry {
-    data class SectionHeader(val text: String) : CorpusTableEntry
+    data class SectionHeader(val textHu: String, val textEn: String = textHu) : CorpusTableEntry
     data class DataRow(
         val rank: Int,
         val item: String,
@@ -46,6 +47,7 @@ private sealed interface CorpusTableEntry {
 fun CorpusAnalyzerScreen(
     runTask: (String, suspend () -> Unit) -> Unit
 ) {
+    val lang = LocalAppLanguage.current
     var processableCorpora by remember { mutableStateOf(listProcessableCorpora()) }
     var selectedCorpus by remember {
         mutableStateOf(
@@ -64,7 +66,7 @@ fun CorpusAnalyzerScreen(
     var tableViewMode by remember { mutableStateOf(true) }
     var parsedTableEntries by remember { mutableStateOf<List<CorpusTableEntry>>(emptyList()) }
     var previewContent by remember {
-        mutableStateOf("Válassz egy korpuszt és futtass egy elemzést, vagy válaszd ki a már elkészült statisztikai fájlokat.")
+        mutableStateOf("")
     }
 
     fun formatTabSeparatedLines(rawLines: List<String>): String {
@@ -134,12 +136,17 @@ fun CorpusAnalyzerScreen(
                 else -> {
                     val single = cols[0]
                     if (lineIdx == 0 && single.all { it.isDigit() }) {
-                        entries.add(CorpusTableEntry.SectionHeader("Összes elem / N-gram a korpuszban: $single db"))
+                        entries.add(
+                            CorpusTableEntry.SectionHeader(
+                                textHu = "Összes elem / N-gram a korpuszban: $single db",
+                                textEn = "Total items / N-grams in corpus: $single"
+                            )
+                        )
                     } else {
                         if (single.endsWith(":")) {
                             currentRank = 0
                         }
-                        entries.add(CorpusTableEntry.SectionHeader(single))
+                        entries.add(CorpusTableEntry.SectionHeader(single, single))
                     }
                 }
             }
@@ -158,7 +165,10 @@ fun CorpusAnalyzerScreen(
                 previewContent = formatTabSeparatedLines(rawLines)
             }.onFailure {
                 parsedTableEntries = emptyList()
-                previewContent = "Hiba a fájl olvasásakor: ${it.message}"
+                previewContent = lang.pick(
+                    "Hiba a fájl olvasásakor: ${it.message}",
+                    "Error reading file: ${it.message}"
+                )
             }
         }
     }
@@ -188,7 +198,7 @@ fun CorpusAnalyzerScreen(
             loadResultFileText(corpus, chosen)
         } else {
             parsedTableEntries = emptyList()
-            previewContent = "Az 'analysis_results/$corpus' mappa még nem tartalmaz elemzési fájlokat.\nFuttasd az Összes Korpusz Elemzést vagy valamelyik egyedi modult!"
+            previewContent = ""
         }
     }
 
@@ -209,20 +219,20 @@ fun CorpusAnalyzerScreen(
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
             SectionCard(
-                title = "1. Korpusz kiválasztása",
-                subtitle = "Forrásmappa: processable_texts",
+                title = tr("1. Korpusz kiválasztása", "1. Select Corpus"),
+                subtitle = tr("Forrásmappa: processable_texts", "Source folder: processable_texts"),
                 headerTrailing = {
                     IconButton(onClick = {
                         processableCorpora = listProcessableCorpora()
                         rawTexts = listRawTexts()
                         refreshResultFilesFor(selectedCorpus)
                     }) {
-                        Icon(Icons.Default.Refresh, contentDescription = "Frissítés")
+                        Icon(Icons.Default.Refresh, contentDescription = tr("Frissítés", "Refresh"))
                     }
                 }
             ) {
                 DropdownSelector(
-                    label = "Feldolgozható korpuszok (processable_texts)",
+                    label = tr("Feldolgozható korpuszok (processable_texts)", "Processable corpora (processable_texts)"),
                     options = processableCorpora,
                     selected = selectedCorpus,
                     onSelect = { selectedCorpus = it }
@@ -231,7 +241,7 @@ fun CorpusAnalyzerScreen(
                 Button(
                     onClick = {
                         val cName = selectedCorpus ?: return@Button
-                        runTask("Teljes korpusz elemzés ($cName)") {
+                        runTask(lang.pick("Teljes korpusz elemzés ($cName)", "Complete corpus analysis ($cName)")) {
                             completeCorpusAnalysis(cName)
                             refreshResultFilesFor(cName)
                         }
@@ -241,65 +251,68 @@ fun CorpusAnalyzerScreen(
                 ) {
                     Icon(Icons.Default.PlayArrow, contentDescription = null)
                     Spacer(Modifier.width(8.dp))
-                    Text("ÖSSZES KORPUSZ ELEMZÉS FUTTATÁSA (cca)", fontWeight = FontWeight.Bold)
+                    Text(
+                        text = tr("ÖSSZES KORPUSZ ELEMZÉS FUTTATÁSA (cca)", "RUN ALL CORPUS ANALYSES (cca)"),
+                        fontWeight = FontWeight.Bold
+                    )
                 }
             }
 
             SectionCard(
-                title = "2. Egyedi korpusz-elemző modulok",
-                subtitle = "Külön-külön is lefuttatható statisztikai generátorok"
+                title = tr("2. Egyedi korpusz-elemző modulok", "2. Individual Corpus Analysis Modules"),
+                subtitle = tr("Külön-külön is lefuttatható statisztikai generátorok", "Statistical generators that can be executed individually")
             ) {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     FilledTonalButton(
                         onClick = {
                             val cName = selectedCorpus ?: return@FilledTonalButton
-                            runTask("Karaktergyakoriság ($cName)") {
+                            runTask(lang.pick("Karaktergyakoriság ($cName)", "Letter frequency ($cName)")) {
                                 letterfrequency(cName)
                                 refreshResultFilesFor(cName)
                             }
                         },
                         modifier = Modifier.fillMaxWidth().height(40.dp)
                     ) {
-                        Text("Karaktergyakoriság elemzés (Letter Frequency - lf)")
+                        Text(tr("Karaktergyakoriság elemzés", "Letter Frequency Analysis"))
                     }
 
                     FilledTonalButton(
                         onClick = {
                             val cName = selectedCorpus ?: return@FilledTonalButton
-                            runTask("Bigram elemzés ($cName)") {
+                            runTask(lang.pick("Bigram elemzés ($cName)", "Bigram analysis ($cName)")) {
                                 bigramanalysis(cName)
                                 refreshResultFilesFor(cName)
                             }
                         },
                         modifier = Modifier.fillMaxWidth().height(40.dp)
                     ) {
-                        Text("Bigram elemzés (Bigram Frequency - ba)")
+                        Text(tr("Bigram elemzés", "Bigram Frequency Analysis"))
                     }
 
                     FilledTonalButton(
                         onClick = {
                             val cName = selectedCorpus ?: return@FilledTonalButton
-                            runTask("Trigram elemzés ($cName)") {
+                            runTask(lang.pick("Trigram elemzés ($cName)", "Trigram analysis ($cName)")) {
                                 trigramanalysis(cName)
                                 refreshResultFilesFor(cName)
                             }
                         },
                         modifier = Modifier.fillMaxWidth().height(40.dp)
                     ) {
-                        Text("Trigram elemzés (Trigram Frequency - ta)")
+                        Text(tr("Trigram elemzés", "Trigram Frequency Analysis"))
                     }
 
                     FilledTonalButton(
                         onClick = {
                             val cName = selectedCorpus ?: return@FilledTonalButton
-                            runTask("Szóközös trigram elemzés ($cName)") {
+                            runTask(lang.pick("Szóközös trigram elemzés ($cName)", "Space-included trigram analysis ($cName)")) {
                                 spaceIncludedTrigramAnalysis(cName)
                                 refreshResultFilesFor(cName)
                             }
                         },
                         modifier = Modifier.fillMaxWidth().height(40.dp)
                     ) {
-                        Text("Szóközös trigram elemzés (Space Included Trigrams - sta)")
+                        Text(tr("Szóközös trigram elemzés", "Space-Included Trigram Analysis"))
                     }
 
                     Row(
@@ -308,7 +321,7 @@ fun CorpusAnalyzerScreen(
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         IntSettingField(
-                            label = "Top N szó",
+                            label = tr("Top N szó", "Top N words"),
                             value = wordFreqLimit,
                             onValueChange = { wordFreqLimit = it.coerceAtLeast(1) },
                             modifier = Modifier.width(120.dp)
@@ -316,22 +329,22 @@ fun CorpusAnalyzerScreen(
                         FilledTonalButton(
                             onClick = {
                                 val cName = selectedCorpus ?: return@FilledTonalButton
-                                runTask("Szógyakoriság Top $wordFreqLimit ($cName)") {
+                                runTask(lang.pick("Szógyakoriság Top $wordFreqLimit ($cName)", "Word frequency Top $wordFreqLimit ($cName)")) {
                                     calculatewordfrequency(cName, wordFreqLimit)
                                     refreshResultFilesFor(cName)
                                 }
                             },
                             modifier = Modifier.weight(1f).height(48.dp)
                         ) {
-                            Text("Szógyakoriság számítása (cwf)")
+                            Text(tr("Szógyakoriság számítása", "Word Frequency Calculation"))
                         }
                     }
                 }
             }
 
             SectionCard(
-                title = "3. Korpusz előkészítő segédeszközök",
-                subtitle = "Előfeldolgozás (raw_texts) és véletlen mintavételezés"
+                title = tr("3. Korpusz előkészítő segédeszközök", "3. Corpus Preparation Utilities"),
+                subtitle = tr("Előfeldolgozás (raw_texts) és véletlen mintavételezés", "Preprocessing (raw_texts) and random line sampling")
             ) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
@@ -339,7 +352,7 @@ fun CorpusAnalyzerScreen(
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     DropdownSelector(
-                        label = "Nyers fájl (raw_texts)",
+                        label = tr("Nyers fájl (raw_texts)", "Raw file (raw_texts)"),
                         options = rawTexts,
                         selected = selectedRawFile,
                         onSelect = { selectedRawFile = it },
@@ -348,7 +361,7 @@ fun CorpusAnalyzerScreen(
                     FilledTonalButton(
                         onClick = {
                             val raw = selectedRawFile ?: return@FilledTonalButton
-                            runTask("Előfeldolgozás ($raw)") {
+                            runTask(lang.pick("Előfeldolgozás ($raw)", "Preprocess ($raw)")) {
                                 stripIndicesAndSave(File("raw_texts/$raw"), File("processable_texts/$raw"))
                                 processableCorpora = listProcessableCorpora()
                             }
@@ -366,7 +379,7 @@ fun CorpusAnalyzerScreen(
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     IntSettingField(
-                        label = "Sorok száma",
+                        label = tr("Sorok száma", "Line count"),
                         value = randomSubsetLines,
                         onValueChange = { randomSubsetLines = it.coerceAtLeast(1) },
                         modifier = Modifier.width(130.dp)
@@ -374,14 +387,14 @@ fun CorpusAnalyzerScreen(
                     OutlinedButton(
                         onClick = {
                             val cName = selectedCorpus ?: return@OutlinedButton
-                            runTask("Véletlen $randomSubsetLines sor ($cName)") {
+                            runTask(lang.pick("Véletlen $randomSubsetLines sor ($cName)", "Random $randomSubsetLines lines ($cName)")) {
                                 createRandomSubset("processable_texts/$cName", randomSubsetLines)
                                 processableCorpora = listProcessableCorpora()
                             }
                         },
                         modifier = Modifier.weight(1f).height(48.dp)
                     ) {
-                        Text("Véletlen sorok mintavételezése")
+                        Text(tr("Véletlen sorok mintavételezése", "Sample Random Lines"))
                     }
                 }
             }
@@ -389,15 +402,22 @@ fun CorpusAnalyzerScreen(
 
         // Jobb oldali előnézeti kártya
         SectionCard(
-            title = "Generált Korpusz Statisztikák Böngészése",
-            subtitle = selectedCorpus?.let { "Mappa: analysis_results/$it" } ?: "Válassz egy korpuszt",
+            title = tr("Generált Korpusz Statisztikák Böngészése", "Browse Generated Corpus Statistics"),
+            subtitle = selectedCorpus?.let {
+                tr("Mappa: analysis_results/$it", "Folder: analysis_results/$it")
+            } ?: tr("Válassz egy korpuszt", "Select a corpus"),
             modifier = Modifier.weight(1f).fillMaxHeight(),
             headerTrailing = {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     FilterChip(
                         selected = tableViewMode,
                         onClick = { tableViewMode = !tableViewMode },
-                        label = { Text(if (tableViewMode) "Táblázat nézet" else "Szöveges nézet", fontSize = 12.sp) },
+                        label = {
+                            Text(
+                                text = if (tableViewMode) tr("Táblázat nézet", "Table View") else tr("Szöveges nézet", "Text View"),
+                                fontSize = 12.sp
+                            )
+                        },
                         leadingIcon = {
                             Icon(
                                 imageVector = if (tableViewMode) Icons.Default.TableRows else Icons.Default.Notes,
@@ -414,14 +434,14 @@ fun CorpusAnalyzerScreen(
                     ) {
                         Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(16.dp))
                         Spacer(Modifier.width(6.dp))
-                        Text("Frissítés", fontSize = 12.sp)
+                        Text(tr("Frissítés", "Refresh"), fontSize = 12.sp)
                     }
                 }
             }
         ) {
             if (resultFiles.isNotEmpty()) {
                 DropdownSelector(
-                    label = "Eredményfájl kiválasztása",
+                    label = tr("Eredményfájl kiválasztása", "Select result file"),
                     options = resultFiles,
                     selected = selectedResultFile,
                     onSelect = { file ->
@@ -461,25 +481,25 @@ fun CorpusAnalyzerScreen(
                                 modifier = Modifier.width(64.dp)
                             )
                             Text(
-                                text = "Elem / N-gram / Szó",
+                                text = tr("Elem / N-gram / Szó", "Item / N-gram / Word"),
                                 style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
                                 modifier = Modifier.weight(1.3f)
                             )
                             Text(
-                                text = "Gyakoriság (%)",
+                                text = tr("Gyakoriság (%)", "Frequency (%)"),
                                 style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
                                 modifier = Modifier.weight(1f)
                             )
                             if (hasCategoryCol) {
                                 Text(
-                                    text = "Kategória",
+                                    text = tr("Kategória", "Category"),
                                     style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
                                     modifier = Modifier.weight(0.9f)
                                 )
                             }
                             if (hasCountCol) {
                                 Text(
-                                    text = "Előfordulás (db)",
+                                    text = tr("Előfordulás (db)", "Count"),
                                     style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
                                     modifier = Modifier.weight(1f)
                                 )
@@ -507,7 +527,7 @@ fun CorpusAnalyzerScreen(
                                                     .padding(vertical = 2.dp)
                                             ) {
                                                 Text(
-                                                    text = entry.text,
+                                                    text = tr(entry.textHu, entry.textEn),
                                                     style = MaterialTheme.typography.labelLarge.copy(
                                                         fontWeight = FontWeight.Bold,
                                                         color = MaterialTheme.colorScheme.onSecondaryContainer
@@ -590,6 +610,14 @@ fun CorpusAnalyzerScreen(
                     }
                 }
             } else {
+                val displayedPreview = if (previewContent.isNotEmpty()) {
+                    previewContent
+                } else {
+                    tr(
+                        "Az 'analysis_results/${selectedCorpus ?: ""}' mappa még nem tartalmaz elemzési fájlokat.\nFuttasd az Összes Korpusz Elemzést vagy valamelyik egyedi modult!",
+                        "The 'analysis_results/${selectedCorpus ?: ""}' folder does not contain any analysis files yet.\nRun All Corpus Analyses or one of the individual modules!"
+                    )
+                }
                 val vScroll = rememberScrollState()
                 val hScroll = rememberScrollState()
                 Surface(
@@ -606,7 +634,7 @@ fun CorpusAnalyzerScreen(
                                 .horizontalScroll(hScroll)
                         ) {
                             Text(
-                                text = previewContent,
+                                text = displayedPreview,
                                 fontFamily = FontFamily.Monospace,
                                 fontSize = 12.sp,
                                 lineHeight = 18.sp
@@ -641,6 +669,7 @@ fun CorpusAnalyzerScreen(
 fun LayoutAnalyzerScreen(
     runTask: (String, suspend () -> Unit) -> Unit
 ) {
+    val lang = LocalAppLanguage.current
     var selectedFolder by remember { mutableStateOf("keyboards") }
     var layouts by remember(selectedFolder) { mutableStateOf(listKeyboardLayouts(selectedFolder)) }
     var selectedLayout by remember(layouts) { mutableStateOf(layouts.firstOrNull()) }
@@ -682,14 +711,17 @@ fun LayoutAnalyzerScreen(
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
             SectionCard(
-                title = "1. Forrásmappa, Layout és Korpusz",
-                subtitle = "A billentyűzetelemző a kiválasztott folder paraméterben keres",
+                title = tr("1. Forrásmappa, Layout és Korpusz", "1. Source Folder, Layout and Corpus"),
+                subtitle = tr(
+                    "A billentyűzetelemző a kiválasztott folder paraméterben keres",
+                    "The layout analyzer searches within the selected folder parameter"
+                ),
                 headerTrailing = {
                     IconButton(onClick = {
                         layouts = listKeyboardLayouts(selectedFolder)
                         corpora = listAnalyzedCorpora()
                     }) {
-                        Icon(Icons.Default.Refresh, contentDescription = "Listák frissítése")
+                        Icon(Icons.Default.Refresh, contentDescription = tr("Listák frissítése", "Refresh lists"))
                     }
                 }
             ) {
@@ -700,7 +732,7 @@ fun LayoutAnalyzerScreen(
                     FilterChip(
                         selected = selectedFolder == "keyboards",
                         onClick = { selectedFolder = "keyboards" },
-                        label = { Text("Alap (keyboards)") },
+                        label = { Text(tr("Alap (keyboards)", "Base (keyboards)")) },
                         leadingIcon = if (selectedFolder == "keyboards") {
                             { Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(16.dp)) }
                         } else null,
@@ -709,7 +741,7 @@ fun LayoutAnalyzerScreen(
                     FilterChip(
                         selected = selectedFolder == "generatedkeyboards",
                         onClick = { selectedFolder = "generatedkeyboards" },
-                        label = { Text("Generált (generatedkeyboards)") },
+                        label = { Text(tr("Generált (generatedkeyboards)", "Generated (generatedkeyboards)")) },
                         leadingIcon = if (selectedFolder == "generatedkeyboards") {
                             { Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(16.dp)) }
                         } else null,
@@ -719,7 +751,7 @@ fun LayoutAnalyzerScreen(
 
                 Spacer(Modifier.height(8.dp))
                 DropdownSelector(
-                    label = "Billentyűzetkiosztás ($selectedFolder)",
+                    label = tr("Billentyűzetkiosztás ($selectedFolder)", "Keyboard Layout ($selectedFolder)"),
                     options = layouts,
                     selected = selectedLayout,
                     onSelect = { selectedLayout = it }
@@ -727,7 +759,7 @@ fun LayoutAnalyzerScreen(
 
                 Spacer(Modifier.height(8.dp))
                 DropdownSelector(
-                    label = "Korpusz",
+                    label = tr("Korpusz", "Corpus"),
                     options = corpora,
                     selected = selectedCorpus,
                     onSelect = { selectedCorpus = it }
@@ -739,7 +771,7 @@ fun LayoutAnalyzerScreen(
                         val lName = selectedLayout ?: return@Button
                         val cName = selectedCorpus ?: return@Button
                         val folder = selectedFolder
-                        runTask("Teljes layout elemzés ($lName)") {
+                        runTask(lang.pick("Teljes layout elemzés ($lName)", "Complete layout analysis ($lName)")) {
                             val res = completeLayoutAnalysis(lName, cName, folder = folder, verbose = true)
                             analysisResult = res
                             refreshPreviewHeatmap(lName, folder)
@@ -749,28 +781,34 @@ fun LayoutAnalyzerScreen(
                 ) {
                     Icon(Icons.Default.Analytics, contentDescription = null)
                     Spacer(Modifier.width(8.dp))
-                    Text("ÖSSZES ELEMZÉS FUTTATÁSA (cla)", fontWeight = FontWeight.Bold)
+                    Text(
+                        text = tr("ÖSSZES ELEMZÉS FUTTATÁSA (cla)", "RUN ALL ANALYSES (cla)"),
+                        fontWeight = FontWeight.Bold
+                    )
                 }
             }
 
             SectionCard(
-                title = "2. Egyedi Layout Elemzések",
-                subtitle = "Részletes statisztikák az alsó konzolra és a hőtérképre"
+                title = tr("2. Egyedi Layout Elemzések", "2. Individual Layout Analyses"),
+                subtitle = tr(
+                    "Részletes statisztikák az alsó konzolra és a hőtérképre",
+                    "Detailed statistics output to the live console and heatmap"
+                )
             ) {
                 val singleAnalyses = listOf<Pair<String, (String, String, String) -> Unit>>(
-                    "SFB elemzés" to { l, c, f -> runSimpleSfbAnalysis(l, c, f) },
-                    "Alternálás" to { l, c, f -> runAlternationAnalysis(l, c, f) },
-                    "2-Roll elemzés" to { l, c, f -> runRollAnalysis(l, c, f) },
-                    "3-Roll elemzés" to { l, c, f -> run3RollAnalysis(l, c, f) },
-                    "Redirect elemzés" to { l, c, f -> runRedirectAnalysis(l, c, f) },
-                    "Space SFS-1" to { l, c, f -> runSpaceSfs1Analysis(l, c, f) },
-                    "Kéz egyensúly" to { l, c, f -> runHandBalanceAnalysis(l, c, f) },
-                    "Sorok terhelése" to { l, c, f -> runRowUsageAnalysis(l, c, f) },
-                    "Pinky Off" to { l, c, f -> runPinkyOffAnalysis(l, c, f) },
-                    "Lateral Stretch" to { l, c, f -> runLateralStretchAnalysis(l, c, f) },
-                    "Pinky Stretch" to { l, c, f -> runPinkyStretchAnalysis(l, c, f) },
-                    "Full Scissor" to { l, c, f -> runFullScissorAnalysis(l, c, f) },
-                    "Half Scissor" to { l, c, f -> runHalfScissorAnalysis(l, c, f) }
+                    tr("SFB elemzés", "SFB Analysis") to { l, c, f -> runSimpleSfbAnalysis(l, c, f) },
+                    tr("Alternálás", "Alternation") to { l, c, f -> runAlternationAnalysis(l, c, f) },
+                    tr("2-Roll elemzés", "2-Roll Analysis") to { l, c, f -> runRollAnalysis(l, c, f) },
+                    tr("3-Roll elemzés", "3-Roll Analysis") to { l, c, f -> run3RollAnalysis(l, c, f) },
+                    tr("Redirect elemzés", "Redirect Analysis") to { l, c, f -> runRedirectAnalysis(l, c, f) },
+                    tr("Space SFS-1", "Space SFS-1") to { l, c, f -> runSpaceSfs1Analysis(l, c, f) },
+                    tr("Kéz egyensúly", "Hand Balance") to { l, c, f -> runHandBalanceAnalysis(l, c, f) },
+                    tr("Sorok terhelése", "Row Usage") to { l, c, f -> runRowUsageAnalysis(l, c, f) },
+                    tr("Pinky Off", "Pinky Off") to { l, c, f -> runPinkyOffAnalysis(l, c, f) },
+                    tr("Lateral Stretch", "Lateral Stretch") to { l, c, f -> runLateralStretchAnalysis(l, c, f) },
+                    tr("Pinky Stretch", "Pinky Stretch") to { l, c, f -> runPinkyStretchAnalysis(l, c, f) },
+                    tr("Full Scissor", "Full Scissor") to { l, c, f -> runFullScissorAnalysis(l, c, f) },
+                    tr("Half Scissor", "Half Scissor") to { l, c, f -> runHalfScissorAnalysis(l, c, f) }
                 )
 
                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -805,7 +843,7 @@ fun LayoutAnalyzerScreen(
                     onClick = {
                         val cName = selectedCorpus ?: return@OutlinedButton
                         val clean = if (cName.endsWith(".txt")) cName else "$cName.txt"
-                        runTask("CSV összesítő generálása ($clean)") {
+                        runTask(lang.pick("CSV összesítő generálása ($clean)", "Generate Summary CSV ($clean)")) {
                             generateSummaryCsv(clean)
                         }
                     },
@@ -813,7 +851,7 @@ fun LayoutAnalyzerScreen(
                 ) {
                     Icon(Icons.Default.TableChart, contentDescription = null, modifier = Modifier.size(18.dp))
                     Spacer(Modifier.width(8.dp))
-                    Text("CSV Összesítő táblázat generálása")
+                    Text(tr("CSV Összesítő táblázat generálása", "Generate Summary CSV Table"))
                 }
             }
         }
@@ -827,10 +865,13 @@ fun LayoutAnalyzerScreen(
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
             HeatmapViewerCard(
-                title = "Billentyűzetkiosztás és Karakter-elérési Hőtérkép",
+                title = tr("Billentyűzetkiosztás és Karakter-elérési Hőtérkép", "Keyboard Layout and Character Reach Heatmap"),
                 imageBitmap = heatmapBitmap,
                 imageFile = heatmapFile,
-                emptyMessage = "Válassz ki egy layoutot és futtasd az elemzést a hőtérkép megjelenítéséhez.",
+                emptyMessage = tr(
+                    "Válassz ki egy layoutot és futtasd az elemzést a hőtérkép megjelenítéséhez.",
+                    "Select a layout and run the analysis to display the heatmap."
+                ),
                 minHeight = 390.dp
             )
 
@@ -844,13 +885,21 @@ fun LayoutStatsSummaryCard(
     result: LayoutAnalysisResult?,
     extraSubtitle: String? = null
 ) {
+    val lang = LocalAppLanguage.current
     SectionCard(
-        title = if (result != null) "Elemzési statisztikák — ${result.layoutName}" else "Elemzési statisztikák",
-        subtitle = extraSubtitle ?: "Futtasd a teljes elemzést a metrikák megjelenítéséhez"
+        title = if (result != null) {
+            tr("Elemzési statisztikák — ${result.layoutName}", "Analysis Statistics — ${result.layoutName}")
+        } else {
+            tr("Elemzési statisztikák", "Analysis Statistics")
+        },
+        subtitle = extraSubtitle ?: tr(
+            "Futtasd a teljes elemzést a metrikák megjelenítéséhez",
+            "Run the complete analysis to display the metrics"
+        )
     ) {
         if (result == null) {
             Text(
-                text = "Még nincs megjeleníthető statisztika.",
+                text = tr("Még nincs megjeleníthető statisztika.", "No statistics to display yet."),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -861,25 +910,25 @@ fun LayoutStatsSummaryCard(
                 horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 MetricBadge(
-                    title = "Total Effort (Összpontszám)",
+                    title = tr("Total Effort (Összpontszám)", "Total Effort (Overall Score)"),
                     value = String.format("%.4f", result.totalEffort),
                     accentColor = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.weight(1f)
                 )
                 MetricBadge(
-                    title = "SFB (Egyujjas Bigram)",
+                    title = tr("SFB (Egyujjas Bigram)", "SFB (Same-Finger Bigram)"),
                     value = String.format("%.3f%%", result.sfbPercentage),
                     accentColor = Color(0xFFDC2626),
                     modifier = Modifier.weight(1f)
                 )
                 MetricBadge(
-                    title = "Alapsor (Home Row)",
+                    title = tr("Alapsor (Home Row)", "Home Row Usage"),
                     value = String.format("%.2f%%", result.homeRowPercentage),
                     accentColor = MaterialTheme.colorScheme.secondary,
                     modifier = Modifier.weight(1f)
                 )
                 MetricBadge(
-                    title = "Kéz arány (Bal / Jobb)",
+                    title = tr("Kéz arány (Bal / Jobb)", "Hand Balance (Left / Right)"),
                     value = String.format("%.1f%% / %.1f%%", result.handBalanceLeft, result.handBalanceRight),
                     accentColor = MaterialTheme.colorScheme.tertiary,
                     modifier = Modifier.weight(1f)
@@ -892,18 +941,18 @@ fun LayoutStatsSummaryCard(
             val rows = buildList {
                 add("Char Reach Effort" to String.format("%.4f", result.charReachEffort))
                 add("Base Gravity Effort" to String.format("%.4f", result.baseGravityEffort))
-                add("Space SFS-1 büntetés" to String.format("%.4f", result.spaceSfs1Penalty))
-                add("Pinky Off (Kisujj alapgomb kívül)" to String.format("%.4f%%", result.pinkyOffPercentage))
+                add(lang.pick("Space SFS-1 büntetés", "Space SFS-1 Penalty") to String.format("%.4f", result.spaceSfs1Penalty))
+                add(lang.pick("Pinky Off (Kisujj alapgomb kívül)", "Pinky Off (Outside Home Key)") to String.format("%.4f%%", result.pinkyOffPercentage))
                 add("Lateral Stretch Bigram (LSB)" to String.format("%.4f%%", result.lateralStretchPercentage))
                 add("Pinky Stretch Bigram (PSB)" to String.format("%.4f%%", result.pinkystretchPercentage))
                 add("Full Scissor Bigram (FSB)" to String.format("%.4f%%", result.fullScissorPercentage))
                 add("Half Scissor Bigram (HSB)" to String.format("%.4f%%", result.halfScissorPercentage))
-                add("Alternálás (1-1-1)" to String.format("%.4f%%", result.alternationPercentage))
-                add("2-Roll (2-1 és 1-2)" to String.format("%.4f%%", result.rollPercentage))
-                add("3-Roll (Egykezes gördülés)" to String.format("%.4f%%", result.threerollPercentage))
-                add("Redirect (Irányváltás)" to String.format("%.4f%%", result.redirectPercentage))
+                add(lang.pick("Alternálás (1-1-1)", "Alternation (1-1-1)") to String.format("%.4f%%", result.alternationPercentage))
+                add(lang.pick("2-Roll (2-1 és 1-2)", "2-Roll (2-1 and 1-2)") to String.format("%.4f%%", result.rollPercentage))
+                add(lang.pick("3-Roll (Egykezes gördülés)", "3-Roll (One-Handed Roll)") to String.format("%.4f%%", result.threerollPercentage))
+                add(lang.pick("Redirect (Irányváltás)", "Redirect (Direction Change)") to String.format("%.4f%%", result.redirectPercentage))
                 result.rowPercentages.forEachIndexed { idx, pct ->
-                    add("$idx. sor terhelése" to String.format("%.2f%%", pct))
+                    add(lang.pick("$idx. sor terhelése", "Row $idx Usage") to String.format("%.2f%%", pct))
                 }
             }
 
@@ -969,6 +1018,7 @@ private data class FingerUiState(
 fun EffortModelScreen(
     runTask: (String, suspend () -> Unit) -> Unit
 ) {
+    val lang = LocalAppLanguage.current
     fun snapshotFingers(): List<FingerUiState> = Finger.entries.map {
         FingerUiState(it, it.baseEffort, it.homeOffsetX, it.homeOffsetY, it.maxComfortReachY, it.maxComfortReachX)
     }
@@ -981,12 +1031,12 @@ fun EffortModelScreen(
     var wallY by remember { mutableStateOf(EffortGeneratorSettings.biomechanicalWallMultiplierY) }
     var wallX by remember { mutableStateOf(EffortGeneratorSettings.biomechanicalWallMultiplierX) }
     var boxInKeySpace by remember { mutableStateOf(EffortGeneratorSettings.boxInKeySpace) }
-    var staticOffsetMode by remember {
+    var staticOffsetIndex by remember {
         mutableStateOf(
             when (EffortGeneratorSettings.overrideApplyStaticFingerOffsets) {
-                true -> "Mindig IGEN (true)"
-                false -> "Mindig NEM (false)"
-                else -> "Automatikus (Stagger alapján)"
+                true -> 1
+                false -> 2
+                else -> 0
             }
         )
     }
@@ -994,7 +1044,7 @@ fun EffortModelScreen(
     // KeyboardHalf geometria állapotok
     val templates = remember { listKeyboardLayouts("keyboards") }
     var selectedTemplate by remember { mutableStateOf(templates.firstOrNull()) }
-    var generatorModel by remember { mutableStateOf("CustomKeyboardEffortGenerator (Biomechanikai fallal)") }
+    var generatorModelIndex by remember { mutableStateOf(0) }
     var staggerType by remember { mutableStateOf(StaggerType.COLUMNAR_STAGGER) }
     var numRows by remember { mutableStateOf(5) }
     var homeRow by remember { mutableStateOf(2) }
@@ -1011,10 +1061,18 @@ fun EffortModelScreen(
 
     var previewBitmap by remember { mutableStateOf<ImageBitmap?>(null) }
     var previewFile by remember { mutableStateOf<File?>(null) }
-    var matrixText by remember {
-        mutableStateOf("Kattints a 'Hőtérkép és Effort Mátrix Generálása' gombra az előnézethez.")
+    var matrixText by remember { mutableStateOf("") }
+    var statusBannerHu by remember { mutableStateOf<String?>(null) }
+    var statusBannerEn by remember { mutableStateOf<String?>(null) }
+    var statusBannerTick by remember { mutableStateOf(0) }
+
+    LaunchedEffect(statusBannerTick) {
+        if (statusBannerHu != null) {
+            delay(6000L)
+            statusBannerHu = null
+            statusBannerEn = null
+        }
     }
-    var statusBanner by remember { mutableStateOf<String?>(null) }
 
     fun applyGlobalSettingsToMemory() {
         for (fs in fingerStates) {
@@ -1030,9 +1088,9 @@ fun EffortModelScreen(
         EffortGeneratorSettings.biomechanicalWallMultiplierY = wallY
         EffortGeneratorSettings.biomechanicalWallMultiplierX = wallX
         EffortGeneratorSettings.boxInKeySpace = boxInKeySpace
-        EffortGeneratorSettings.overrideApplyStaticFingerOffsets = when {
-            staticOffsetMode.contains("IGEN") -> true
-            staticOffsetMode.contains("NEM") -> false
+        EffortGeneratorSettings.overrideApplyStaticFingerOffsets = when (staticOffsetIndex) {
+            1 -> true
+            2 -> false
             else -> null
         }
     }
@@ -1050,8 +1108,11 @@ fun EffortModelScreen(
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
             SectionCard(
-                title = "1. Ujj (Finger) anatómiai paraméterek",
-                subtitle = "KeyboardHalf.kt — Alap terhelés (Pf), ujj-offsetek és komfortzóna határok"
+                title = tr("1. Ujj (Finger) anatómiai paraméterek", "1. Finger Anatomical Parameters"),
+                subtitle = tr(
+                    "KeyboardHalf.kt — Alap terhelés (Pf), ujj-offsetek és komfortzóna határok",
+                    "KeyboardHalf.kt — Base effort (Pf), finger offsets and comfort zone limits"
+                )
             ) {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     fingerStates.forEachIndexed { idx, fs ->
@@ -1118,36 +1179,56 @@ fun EffortModelScreen(
             }
 
             SectionCard(
-                title = "2. EffortLayoutGenerator paraméterei",
-                subtitle = "EffortLayoutGenerator.kt — Globális effort számítási szorzók"
+                title = tr("2. EffortLayoutGenerator paraméterei", "2. EffortLayoutGenerator Parameters"),
+                subtitle = tr(
+                    "EffortLayoutGenerator.kt — Globális effort számítási szorzók",
+                    "EffortLayoutGenerator.kt — Global effort calculation multipliers"
+                )
             ) {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    DoubleSettingField("Oldalirányú büntetés (Px)", lateralPx, { lateralPx = it }, Modifier.weight(1f))
-                    DoubleSettingField("Távolság büntetés (Pd)", distancePd, { distancePd = it }, Modifier.weight(1f))
+                    DoubleSettingField(tr("Oldalirányú büntetés (Px)", "Lateral Penalty (Px)"), lateralPx, { lateralPx = it }, Modifier.weight(1f))
+                    DoubleSettingField(tr("Távolság büntetés (Pd)", "Distance Penalty (Pd)"), distancePd, { distancePd = it }, Modifier.weight(1f))
                 }
                 Spacer(Modifier.height(8.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    DoubleSettingField("Aktivációs margó", actMargin, { actMargin = it }, Modifier.weight(1f))
-                    DoubleSettingField("Biomech. fal Y (25.0)", wallY, { wallY = it }, Modifier.weight(1f))
-                    DoubleSettingField("Biomech. fal X (5.5)", wallX, { wallX = it }, Modifier.weight(1f))
+                    DoubleSettingField(tr("Aktivációs margó", "Activation Margin"), actMargin, { actMargin = it }, Modifier.weight(1f))
+                    DoubleSettingField(tr("Biomech. fal Y (25.0)", "Biomech. Wall Y (25.0)"), wallY, { wallY = it }, Modifier.weight(1f))
+                    DoubleSettingField(tr("Biomech. fal X (5.5)", "Biomech. Wall X (5.5)"), wallX, { wallX = it }, Modifier.weight(1f))
                 }
                 Spacer(Modifier.height(8.dp))
+                val staticOffsetOptions = listOf(0, 1, 2)
                 DropdownSelector(
-                    label = "Statikus ujj-hossz kompenzáció (applyStaticFingerOffsets)",
-                    options = listOf("Automatikus (Stagger alapján)", "Mindig IGEN (true)", "Mindig NEM (false)"),
-                    selected = staticOffsetMode,
-                    onSelect = { staticOffsetMode = it }
+                    label = tr(
+                        "Statikus ujj-hossz kompenzáció (applyStaticFingerOffsets)",
+                        "Static Finger Length Compensation (applyStaticFingerOffsets)"
+                    ),
+                    options = staticOffsetOptions,
+                    selected = staticOffsetIndex,
+                    onSelect = { staticOffsetIndex = it },
+                    itemLabel = { idx ->
+                        when (idx) {
+                            1 -> lang.pick("Mindig IGEN (true)", "Always YES (true)")
+                            2 -> lang.pick("Mindig NEM (false)", "Always NO (false)")
+                            else -> lang.pick("Automatikus (Stagger alapján)", "Automatic (Based on Stagger)")
+                        }
+                    }
                 )
                 Spacer(Modifier.height(6.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Checkbox(checked = boxInKeySpace, onCheckedChange = { boxInKeySpace = it })
-                    Text("Box in Key Space (Colemak-DH kompatibilis tengelyforgás)", style = MaterialTheme.typography.bodySmall)
+                    Text(
+                        text = tr(
+                            "Box in Key Space (Colemak-DH kompatibilis tengelyforgás)",
+                            "Box in Key Space (Colemak-DH compatible axis rotation)"
+                        ),
+                        style = MaterialTheme.typography.bodySmall
+                    )
                 }
 
-                if (statusBanner != null) {
+                if (statusBannerHu != null && statusBannerEn != null) {
                     Spacer(Modifier.height(6.dp))
                     Text(
-                        text = statusBanner!!,
+                        text = tr(statusBannerHu!!, statusBannerEn!!),
                         style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.SemiBold),
                         color = MaterialTheme.colorScheme.secondary
                     )
@@ -1166,40 +1247,47 @@ fun EffortModelScreen(
                             wallY = EffortGeneratorSettings.biomechanicalWallMultiplierY
                             wallX = EffortGeneratorSettings.biomechanicalWallMultiplierX
                             boxInKeySpace = EffortGeneratorSettings.boxInKeySpace
-                            staticOffsetMode = "Automatikus (Stagger alapján)"
-                            statusBanner = "Alapértelmezett fizikai modell értékek visszaállítva."
+                            staticOffsetIndex = 0
+                            statusBannerHu = "Alapértelmezett fizikai modell értékek visszaállítva."
+                            statusBannerEn = "Default physical model parameters restored."
+                            statusBannerTick++
                         },
                         modifier = Modifier.weight(1f)
                     ) {
                         Icon(Icons.Default.RestartAlt, contentDescription = null, modifier = Modifier.size(18.dp))
                         Spacer(Modifier.width(6.dp))
-                        Text("Alapértékek")
+                        Text(tr("Alapértékek", "Restore Defaults"))
                     }
                     Button(
                         onClick = {
                             applyGlobalSettingsToMemory()
-                            statusBanner = "Globális fizikai effort modell frissítve a memóriában!"
-                            println("Fizikai effort modell paraméterei frissítve a memóriában.")
+                            statusBannerHu = "Globális fizikai effort modell frissítve a memóriában!"
+                            statusBannerEn = "Global physical effort model updated in memory!"
+                            statusBannerTick++
+                            println(lang.pick("Fizikai effort modell paraméterei frissítve a memóriában.", "Physical effort model parameters updated in memory."))
                         },
                         modifier = Modifier.weight(1f)
                     ) {
                         Icon(Icons.Default.CheckCircle, contentDescription = null, modifier = Modifier.size(18.dp))
                         Spacer(Modifier.width(6.dp))
-                        Text("Alkalmazás globálisan")
+                        Text(tr("Alkalmazás globálisan", "Apply Globally"))
                     }
                 }
             }
 
             SectionCard(
-                title = "3. KeyboardHalf fizikai geometria & Hőtérkép teszt",
-                subtitle = "Sablon betöltése vagy egyedi oszlop-eltolások megadása"
+                title = tr("3. KeyboardHalf fizikai geometria & Hőtérkép teszt", "3. KeyboardHalf Physical Geometry & Heatmap Test"),
+                subtitle = tr(
+                    "Sablon betöltése vagy egyedi oszlop-eltolások megadása",
+                    "Load a hardware template or configure custom column offsets"
+                )
             ) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     DropdownSelector(
-                        label = "Sablon YAML (keyboards)",
+                        label = tr("Sablon YAML (keyboards)", "Template YAML (keyboards)"),
                         options = templates,
                         selected = selectedTemplate,
                         onSelect = { selectedTemplate = it },
@@ -1231,19 +1319,29 @@ fun EffortModelScreen(
                         },
                         modifier = Modifier.height(50.dp)
                     ) {
-                        Text("Betöltés")
+                        Text(tr("Betöltés", "Load"))
                     }
                 }
 
                 Spacer(Modifier.height(8.dp))
                 DropdownSelector(
-                    label = "Generátor típus",
-                    options = listOf(
-                        "CustomKeyboardEffortGenerator (Biomechanikai fallal)",
-                        "ColemakDhEffortGenerator (Klasszikus)"
-                    ),
-                    selected = generatorModel,
-                    onSelect = { generatorModel = it }
+                    label = tr("Generátor típus", "Generator Type"),
+                    options = listOf(0, 1),
+                    selected = generatorModelIndex,
+                    onSelect = { generatorModelIndex = it },
+                    itemLabel = { idx ->
+                        if (idx == 0) {
+                            lang.pick(
+                                "CustomKeyboardEffortGenerator (Biomechanikai fallal)",
+                                "CustomKeyboardEffortGenerator (With Biomechanical Wall)"
+                            )
+                        } else {
+                            lang.pick(
+                                "ColemakDhEffortGenerator (Klasszikus)",
+                                "ColemakDhEffortGenerator (Classic)"
+                            )
+                        }
+                    }
                 )
 
                 Spacer(Modifier.height(8.dp))
@@ -1255,12 +1353,12 @@ fun EffortModelScreen(
                         onSelect = { staggerType = it },
                         modifier = Modifier.weight(2f)
                     )
-                    DoubleSettingField("Szög (°)", angleDegrees, { angleDegrees = it }, Modifier.weight(1f))
+                    DoubleSettingField(tr("Szög (°)", "Angle (°)"), angleDegrees, { angleDegrees = it }, Modifier.weight(1f))
                 }
 
                 Spacer(Modifier.height(8.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    IntSettingField("Sorok (numRows)", numRows, { numRows = it.coerceIn(2, 8) }, Modifier.weight(1f))
+                    IntSettingField(tr("Sorok (numRows)", "Rows (numRows)"), numRows, { numRows = it.coerceIn(2, 8) }, Modifier.weight(1f))
                     IntSettingField("HomeRow", homeRow, { homeRow = it.coerceIn(0, 7) }, Modifier.weight(1f))
                 }
 
@@ -1271,33 +1369,33 @@ fun EffortModelScreen(
                 }
 
                 Spacer(Modifier.height(6.dp))
-                OutlinedTextField(leftOffsetsStr, { leftOffsetsStr = it }, label = { Text("Bal kéz offsets") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(leftOffsetsStr, { leftOffsetsStr = it }, label = { Text(tr("Bal kéz offsets", "Left Hand Offsets")) }, singleLine = true, modifier = Modifier.fillMaxWidth())
                 Spacer(Modifier.height(6.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedTextField(leftFingersStr, { leftFingersStr = it }, label = { Text("Bal kéz fingers (P,R,M,I,T)") }, singleLine = true, modifier = Modifier.weight(1f))
-                    OutlinedTextField(leftAnchorsStr, { leftAnchorsStr = it }, label = { Text("Bal kéz anchors") }, singleLine = true, modifier = Modifier.weight(1f))
+                    OutlinedTextField(leftFingersStr, { leftFingersStr = it }, label = { Text(tr("Bal kéz fingers (P,R,M,I,T)", "Left Hand Fingers (P,R,M,I,T)")) }, singleLine = true, modifier = Modifier.weight(1f))
+                    OutlinedTextField(leftAnchorsStr, { leftAnchorsStr = it }, label = { Text(tr("Bal kéz anchors", "Left Hand Anchors")) }, singleLine = true, modifier = Modifier.weight(1f))
                 }
 
                 Spacer(Modifier.height(6.dp))
-                OutlinedTextField(rightOffsetsStr, { rightOffsetsStr = it }, label = { Text("Jobb kéz offsets") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(rightOffsetsStr, { rightOffsetsStr = it }, label = { Text(tr("Jobb kéz offsets", "Right Hand Offsets")) }, singleLine = true, modifier = Modifier.fillMaxWidth())
                 Spacer(Modifier.height(6.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedTextField(rightFingersStr, { rightFingersStr = it }, label = { Text("Jobb kéz fingers (I,M,R,P,T)") }, singleLine = true, modifier = Modifier.weight(1f))
-                    OutlinedTextField(rightAnchorsStr, { rightAnchorsStr = it }, label = { Text("Jobb kéz anchors") }, singleLine = true, modifier = Modifier.weight(1f))
+                    OutlinedTextField(rightFingersStr, { rightFingersStr = it }, label = { Text(tr("Jobb kéz fingers (I,M,R,P,T)", "Right Hand Fingers (I,M,R,P,T)")) }, singleLine = true, modifier = Modifier.weight(1f))
+                    OutlinedTextField(rightAnchorsStr, { rightAnchorsStr = it }, label = { Text(tr("Jobb kéz anchors", "Right Hand Anchors")) }, singleLine = true, modifier = Modifier.weight(1f))
                 }
 
                 Spacer(Modifier.height(12.dp))
                 Button(
                     onClick = {
                         applyGlobalSettingsToMemory()
-                        runTask("Fizikai Effort Hőtérkép generálása") {
+                        runTask(lang.pick("Fizikai Effort Hőtérkép generálása", "Generate Physical Effort Heatmap")) {
                             fun parseFingerCode(code: String): Finger = when (code.uppercase()) {
                                 "P", "PINKY" -> Finger.PINKY
                                 "R", "RING" -> Finger.RING
                                 "M", "MIDDLE" -> Finger.MIDDLE
                                 "I", "INDEX" -> Finger.INDEX
                                 "T", "THUMB" -> Finger.THUMB
-                                else -> throw IllegalArgumentException("Ismeretlen ujj kód: '$code'")
+                                else -> throw IllegalArgumentException("Unknown finger code: '$code'")
                             }
 
                             val lOff = leftOffsetsStr.split(",").map { it.trim().toDouble() }
@@ -1314,7 +1412,7 @@ fun EffortModelScreen(
                             val leftConfigs = lFin.indices.map { i -> ColumnConfig(i, lAnc[i], lFin[i]) }
                             val rightConfigs = rFin.indices.map { i -> ColumnConfig(i, rAnc[i], rFin[i]) }
 
-                            val useCustom = generatorModel.startsWith("Custom")
+                            val useCustom = generatorModelIndex == 0
                             val leftEffort = if (useCustom) {
                                 CustomKeyboardEffortGenerator(
                                     keyboardHalf = leftHalf,
@@ -1370,7 +1468,12 @@ fun EffortModelScreen(
                             previewBitmap = loadComposeBitmap(outFile)
 
                             val sb = StringBuilder()
-                            sb.appendLine("=== GENERÁLT FIZIKAI EFFORT MÁTRIX ($staggerType, numRows=$numRows, homeRow=$homeRow) ===\n")
+                            sb.appendLine(
+                                lang.pick(
+                                    "=== GENERÁLT FIZIKAI EFFORT MÁTRIX ($staggerType, numRows=$numRows, homeRow=$homeRow) ===\n",
+                                    "=== GENERATED PHYSICAL EFFORT MATRIX ($staggerType, numRows=$numRows, homeRow=$homeRow) ===\n"
+                                )
+                            )
                             for (r in 0 until numRows) {
                                 val lStr = leftEffort[r].joinToString(" ") { String.format("%5.2f", it) }
                                 val rStr = rightEffort[r].joinToString(" ") { String.format("%5.2f", it) }
@@ -1378,14 +1481,22 @@ fun EffortModelScreen(
                                 sb.appendLine("$lStr   |   $rStr$tag")
                             }
                             matrixText = sb.toString()
-                            println("Fizikai effort hőtérkép elmentve: ${outFile.absolutePath}")
+                            println(
+                                lang.pick(
+                                    "Fizikai effort hőtérkép elmentve: ${outFile.absolutePath}",
+                                    "Physical effort heatmap saved: ${outFile.absolutePath}"
+                                )
+                            )
                         }
                     },
                     modifier = Modifier.fillMaxWidth().height(46.dp)
                 ) {
                     Icon(Icons.Default.AutoAwesome, contentDescription = null)
                     Spacer(Modifier.width(8.dp))
-                    Text("Hőtérkép és Effort Mátrix Generálása", fontWeight = FontWeight.Bold)
+                    Text(
+                        text = tr("Hőtérkép és Effort Mátrix Generálása", "Generate Heatmap and Effort Matrix"),
+                        fontWeight = FontWeight.Bold
+                    )
                 }
             }
         }
@@ -1399,24 +1510,41 @@ fun EffortModelScreen(
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
             HeatmapViewerCard(
-                title = "Fizikai Effort Hőtérkép előnézet (custom_effort_heatmap.png)",
+                title = tr(
+                    "Fizikai Effort Hőtérkép előnézet (custom_effort_heatmap.png)",
+                    "Physical Effort Heatmap Preview (custom_effort_heatmap.png)"
+                ),
                 imageBitmap = previewBitmap,
                 imageFile = previewFile,
-                emptyMessage = "Kattints a 'Hőtérkép és Effort Mátrix Generálása' gombra az előnézethez.",
+                emptyMessage = tr(
+                    "Kattints a 'Hőtérkép és Effort Mátrix Generálása' gombra az előnézethez.",
+                    "Click 'Generate Heatmap and Effort Matrix' to preview the physical effort layout."
+                ),
                 minHeight = 380.dp
             )
 
             SectionCard(
-                title = "Számított Effort Mátrix (Bal kéz | Jobb kéz)",
-                subtitle = "A gombok fizikai elérési nehézsége billentyűnként"
+                title = tr("Számított Effort Mátrix (Bal kéz | Jobb kéz)", "Calculated Effort Matrix (Left Hand | Right Hand)"),
+                subtitle = tr(
+                    "A gombok fizikai elérési nehézsége billentyűnként",
+                    "Physical reach effort values per key"
+                )
             ) {
                 Surface(
                     shape = RoundedCornerShape(10.dp),
                     color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
                     modifier = Modifier.fillMaxWidth()
                 ) {
+                    val displayedMatrix = if (matrixText.isNotEmpty()) {
+                        matrixText
+                    } else {
+                        tr(
+                            "Kattints a 'Hőtérkép és Effort Mátrix Generálása' gombra az előnézethez.",
+                            "Click 'Generate Heatmap and Effort Matrix' to preview the matrix."
+                        )
+                    }
                     Text(
-                        text = matrixText,
+                        text = displayedMatrix,
                         fontFamily = FontFamily.Monospace,
                         fontSize = 13.sp,
                         lineHeight = 20.sp,
@@ -1436,6 +1564,7 @@ fun EffortModelScreen(
 fun LayoutGenerationScreen(
     runTask: (String, suspend () -> Unit) -> Unit
 ) {
+    val lang = LocalAppLanguage.current
     var selectedFolder by remember { mutableStateOf("keyboards") }
     var layouts by remember(selectedFolder) { mutableStateOf(listKeyboardLayouts(selectedFolder)) }
     var selectedLayout by remember(layouts) { mutableStateOf(layouts.firstOrNull()) }
@@ -1483,7 +1612,17 @@ fun LayoutGenerationScreen(
     var wRoll by remember { mutableStateOf(weightRoll) }
     var wThreeRoll by remember { mutableStateOf(weightThreeRoll) }
 
-    var weightsStatus by remember { mutableStateOf<String?>(null) }
+    var weightsStatusHu by remember { mutableStateOf<String?>(null) }
+    var weightsStatusEn by remember { mutableStateOf<String?>(null) }
+    var weightsStatusTick by remember { mutableStateOf(0) }
+
+    LaunchedEffect(weightsStatusTick) {
+        if (weightsStatusHu != null) {
+            delay(6000L)
+            weightsStatusHu = null
+            weightsStatusEn = null
+        }
+    }
 
     fun syncWeightsToGlobal() {
         weightCharReachEffort = wCharReach
@@ -1546,14 +1685,17 @@ fun LayoutGenerationScreen(
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
             SectionCard(
-                title = "1. Kiindulási Layout, Korpusz és Algoritmus",
-                subtitle = "Válaszd ki a javítandó billentyűzetkiosztást és a generáló algoritmust",
+                title = tr("1. Kiindulási Layout, Korpusz és Algoritmus", "1. Starting Layout, Corpus and Algorithm"),
+                subtitle = tr(
+                    "Válaszd ki a javítandó billentyűzetkiosztást és a generáló algoritmust",
+                    "Select the keyboard layout to optimize and the generation algorithm"
+                ),
                 headerTrailing = {
                     IconButton(onClick = {
                         layouts = listKeyboardLayouts(selectedFolder)
                         corpora = listAnalyzedCorpora()
                     }) {
-                        Icon(Icons.Default.Refresh, contentDescription = "Frissítés")
+                        Icon(Icons.Default.Refresh, contentDescription = tr("Frissítés", "Refresh"))
                     }
                 }
             ) {
@@ -1564,7 +1706,7 @@ fun LayoutGenerationScreen(
                     FilterChip(
                         selected = selectedFolder == "keyboards",
                         onClick = { selectedFolder = "keyboards" },
-                        label = { Text("Alap (keyboards)") },
+                        label = { Text(tr("Alap (keyboards)", "Base (keyboards)")) },
                         leadingIcon = if (selectedFolder == "keyboards") {
                             { Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(16.dp)) }
                         } else null,
@@ -1573,7 +1715,7 @@ fun LayoutGenerationScreen(
                     FilterChip(
                         selected = selectedFolder == "generatedkeyboards",
                         onClick = { selectedFolder = "generatedkeyboards" },
-                        label = { Text("Generált (generatedkeyboards)") },
+                        label = { Text(tr("Generált (generatedkeyboards)", "Generated (generatedkeyboards)")) },
                         leadingIcon = if (selectedFolder == "generatedkeyboards") {
                             { Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(16.dp)) }
                         } else null,
@@ -1583,28 +1725,37 @@ fun LayoutGenerationScreen(
 
                 Spacer(Modifier.height(8.dp))
                 DropdownSelector(
-                    label = "Javítandó Layout ($selectedFolder)",
+                    label = tr("Javítandó Layout ($selectedFolder)", "Layout to Optimize ($selectedFolder)"),
                     options = layouts,
                     selected = selectedLayout,
                     onSelect = { selectedLayout = it }
                 )
                 Spacer(Modifier.height(8.dp))
                 DropdownSelector(
-                    label = "Cél korpusz (Adathalmaz)",
+                    label = tr("Cél korpusz (Adathalmaz)", "Target Corpus (Dataset)"),
                     options = corpora,
                     selected = selectedCorpus,
                     onSelect = { selectedCorpus = it }
                 )
                 Spacer(Modifier.height(10.dp))
                 Text(
-                    text = "Generáló algoritmus:",
+                    text = tr("Generáló algoritmus:", "Optimization Algorithm:"),
                     style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.SemiBold)
                 )
                 Spacer(Modifier.height(6.dp))
                 val algoTitles = listOf(
-                    "Chips-n-Salsa SA + 2-opt (SelfTuningLam / ModifiedLam)",
-                    "Saját Simulated Annealing + 2-opt (ImproveLayout)",
-                    "MOEA Framework (Genetikus Algoritmus + PMX + 2-opt)"
+                    tr(
+                        "Chips-n-Salsa SA + 2-opt (SelfTuningLam / ModifiedLam)",
+                        "Chips-n-Salsa SA + 2-opt (SelfTuningLam / ModifiedLam)"
+                    ),
+                    tr(
+                        "Saját Simulated Annealing + 2-opt (ImproveLayout)",
+                        "Custom Simulated Annealing + 2-opt (ImproveLayout)"
+                    ),
+                    tr(
+                        "MOEA Framework (Genetikus Algoritmus + PMX + 2-opt)",
+                        "MOEA Framework (Genetic Algorithm + PMX + 2-opt)"
+                    )
                 )
                 algoTitles.forEachIndexed { idx, title ->
                     Surface(
@@ -1635,18 +1786,21 @@ fun LayoutGenerationScreen(
             }
 
             SectionCard(
-                title = "2. Algoritmus futási paraméterek",
-                subtitle = "A párhuzamos szálak / szigetek és iterációk beállításai"
+                title = tr("2. Algoritmus futási paraméterek", "2. Algorithm Runtime Parameters"),
+                subtitle = tr(
+                    "A párhuzamos szálak / szigetek és iterációk beállításai",
+                    "Configure parallel runs / islands and evaluation counts"
+                )
             ) {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     IntSettingField(
-                        label = "Párhuzamos futások / szigetek",
+                        label = tr("Párhuzamos futások / szigetek", "Parallel Runs / Islands"),
                         value = runsOrIslands,
                         onValueChange = { runsOrIslands = it.coerceIn(1, 1024) },
                         modifier = Modifier.weight(1f)
                     )
                     IntSettingField(
-                        label = "Kiértékelések / szál",
+                        label = tr("Kiértékelések / szál", "Evaluations / Thread"),
                         value = evaluationsPerRun,
                         onValueChange = { evaluationsPerRun = it.coerceAtLeast(100) },
                         modifier = Modifier.weight(1f)
@@ -1656,7 +1810,7 @@ fun LayoutGenerationScreen(
                 if (selectedAlgoIndex == 2) {
                     Spacer(Modifier.height(8.dp))
                     IntSettingField(
-                        label = "Populáció mérete (MOEA GA esetén)",
+                        label = tr("Populáció mérete (MOEA GA esetén)", "Population Size (for MOEA GA)"),
                         value = moeaPopSize,
                         onValueChange = { moeaPopSize = it.coerceIn(10, 1000) },
                         modifier = Modifier.fillMaxWidth()
@@ -1668,7 +1822,10 @@ fun LayoutGenerationScreen(
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Checkbox(checked = useSelfTuningLam, onCheckedChange = { useSelfTuningLam = it })
                         Text(
-                            text = "Self-Tuning Lam hűtés (ha ki van kapcsolva: Modified Lam)",
+                            text = tr(
+                                "Self-Tuning Lam hűtés (ha ki van kapcsolva: Modified Lam)",
+                                "Self-Tuning Lam annealing (if unchecked: Modified Lam)"
+                            ),
                             style = MaterialTheme.typography.bodySmall
                         )
                     }
@@ -1677,11 +1834,17 @@ fun LayoutGenerationScreen(
                 if (selectedAlgoIndex != 1) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Checkbox(checked = leftThumbEnabled, onCheckedChange = { leftThumbEnabled = it })
-                        Text("Bal hüvelykujj (thumb_left) bevonása", style = MaterialTheme.typography.bodySmall)
+                        Text(
+                            tr("Bal hüvelykujj (thumb_left) bevonása", "Include Left Thumb (thumb_left)"),
+                            style = MaterialTheme.typography.bodySmall
+                        )
                     }
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Checkbox(checked = rightThumbEnabled, onCheckedChange = { rightThumbEnabled = it })
-                        Text("Jobb hüvelykujj (thumb_right) bevonása", style = MaterialTheme.typography.bodySmall)
+                        Text(
+                            tr("Jobb hüvelykujj (thumb_right) bevonása", "Include Right Thumb (thumb_right)"),
+                            style = MaterialTheme.typography.bodySmall
+                        )
                     }
                 }
 
@@ -1694,7 +1857,7 @@ fun LayoutGenerationScreen(
                         syncWeightsToGlobal()
                         when (selectedAlgoIndex) {
                             0 -> {
-                                runTask("Chips-n-Salsa optimalizáló ($lName)") {
+                                runTask(lang.pick("Chips-n-Salsa optimalizáló ($lName)", "Chips-n-Salsa Optimizer ($lName)")) {
                                     parallelChipsNSalsaImprovement(
                                         runs = runsOrIslands,
                                         evaluationsPerRun = evaluationsPerRun,
@@ -1708,7 +1871,7 @@ fun LayoutGenerationScreen(
                                 }
                             }
                             1 -> {
-                                runTask("Saját SA + 2-opt optimalizáló ($lName)") {
+                                runTask(lang.pick("Saját SA + 2-opt optimalizáló ($lName)", "Custom SA + 2-opt Optimizer ($lName)")) {
                                     parallelImprovement(
                                         runs = runsOrIslands,
                                         keyboardname = lName,
@@ -1719,7 +1882,7 @@ fun LayoutGenerationScreen(
                                 }
                             }
                             else -> {
-                                runTask("MOEA GA + PMX + 2-opt optimalizáló ($lName)") {
+                                runTask(lang.pick("MOEA GA + PMX + 2-opt optimalizáló ($lName)", "MOEA GA + PMX + 2-opt Optimizer ($lName)")) {
                                     parallelMoeaImprovement(
                                         islands = runsOrIslands,
                                         evaluationsPerIsland = evaluationsPerRun,
@@ -1738,15 +1901,24 @@ fun LayoutGenerationScreen(
                 ) {
                     Icon(Icons.Default.RocketLaunch, contentDescription = null)
                     Spacer(Modifier.width(8.dp))
-                    Text("LAYOUT OPTIMALIZÁLÁS / GENERÁLÁS INDÍTÁSA", fontWeight = FontWeight.Bold)
+                    Text(
+                        tr("LAYOUT OPTIMALIZÁLÁS / GENERÁLÁS INDÍTÁSA", "START LAYOUT OPTIMIZATION / GENERATION"),
+                        fontWeight = FontWeight.Bold
+                    )
                 }
             }
         }
 
         // Jobb oldal: Kiértékelő függvény súlyai csúszkákkal és számmezőkkel
         SectionCard(
-            title = "3. Kiértékelő függvény súlyai (calculateTotalEffort.kt)",
-            subtitle = "Szabadon testreszabható büntető és jutalmazó súlyok",
+            title = tr(
+                "3. Kiértékelő függvény súlyai (calculateTotalEffort.kt)",
+                "3. Objective Function Weights (calculateTotalEffort.kt)"
+            ),
+            subtitle = tr(
+                "Szabadon testreszabható büntető és jutalmazó súlyok",
+                "Freely customizable penalty and reward weights"
+            ),
             modifier = Modifier.weight(1f).fillMaxHeight(),
             headerTrailing = {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -1754,34 +1926,44 @@ fun LayoutGenerationScreen(
                         onClick = {
                             resetDefaultWeights()
                             reloadWeightsFromGlobal()
-                            weightsStatus = "Alapértelmezett súlyok visszaállítva."
+                            weightsStatusHu = "Alapértelmezett súlyok visszaállítva."
+                            weightsStatusEn = "Default weights restored."
+                            weightsStatusTick++
                         },
                         modifier = Modifier.height(32.dp),
                         contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
                     ) {
                         Icon(Icons.Default.RestartAlt, contentDescription = null, modifier = Modifier.size(16.dp))
                         Spacer(Modifier.width(4.dp))
-                        Text("Alapértékek", fontSize = 12.sp)
+                        Text(tr("Alapértékek", "Reset Defaults"), fontSize = 12.sp)
                     }
                     Button(
                         onClick = {
                             syncWeightsToGlobal()
-                            weightsStatus = "Célfüggvény súlyok elmentve a memóriába!"
-                            println("Célfüggvény súlyok (Weights) frissítve a memóriában.")
+                            weightsStatusHu = "Célfüggvény súlyok elmentve a memóriába!"
+                            weightsStatusEn = "Objective function weights saved in memory!"
+                            weightsStatusTick++
+                            println(
+                                lang.pick(
+                                    "Célfüggvény súlyok (Weights) frissítve a memóriában.",
+                                    "Objective function weights updated in memory."
+                                )
+                            )
                         },
                         modifier = Modifier.height(32.dp),
                         contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
                     ) {
                         Icon(Icons.Default.Save, contentDescription = null, modifier = Modifier.size(16.dp))
                         Spacer(Modifier.width(4.dp))
-                        Text("Súlyok alkalmazása", fontSize = 12.sp)
+                        Text(tr("Súlyok alkalmazása", "Apply Weights"), fontSize = 12.sp)
                     }
                 }
             }
         ) {
-            if (weightsStatus != null) {
+            val activeWeightsStatus = lang.pick(weightsStatusHu ?: "", weightsStatusEn ?: "")
+            if (activeWeightsStatus.isNotBlank()) {
                 Text(
-                    text = weightsStatus!!,
+                    text = activeWeightsStatus,
                     style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.SemiBold),
                     color = MaterialTheme.colorScheme.secondary,
                     modifier = Modifier.padding(bottom = 6.dp)
@@ -1793,45 +1975,51 @@ fun LayoutGenerationScreen(
                     .verticalScroll(rememberScrollState())
             ) {
                 Text(
-                    text = "BÜNTETŐ SÚLYOK (Penalties — növelik a Total Effortot)",
+                    text = tr(
+                        "BÜNTETŐ SÚLYOK (Penalties — növelik a Total Effortot)",
+                        "PENALTY WEIGHTS (Increase Total Effort)"
+                    ),
                     style = MaterialTheme.typography.labelLarge.copy(
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.primary
                     ),
                     modifier = Modifier.padding(vertical = 4.dp)
                 )
-                WeightSliderRow("weightCharReachEffort", "Karakter elérési terhelés súlya", wCharReach, 0f, 50f) { wCharReach = it }
-                WeightSliderRow("weightGravity", "Alap gravitációs / statikus terhelés súlya", wGravity, 0f, 10f) { wGravity = it }
-                WeightSliderRow("weightHandImbalance", "Kéz aszimmetria büntetés (50-50%-tól eltérés)", wHandImb, 0f, 50f) { wHandImb = it }
-                WeightSliderRow("weightPinkyOff", "Kisujj alapgomb kívüli használat büntetése", wPinkyOff, 0f, 50f) { wPinkyOff = it }
-                WeightSliderRow("weightSfb", "Azonos ujjas bigram (SFB) büntetés", wSfb, 0f, 150f) { wSfb = it }
-                WeightSliderRow("weightFullScissor", "Full Scissor Bigram (FSB) büntetése", wFullScissor, 0f, 150f) { wFullScissor = it }
-                WeightSliderRow("weightHalfScissor", "Half Scissor Bigram (HSB) büntetése", wHalfScissor, 0f, 100f) { wHalfScissor = it }
-                WeightSliderRow("weightLateralStretch", "Lateral Stretch Bigram (LSB) büntetése", wLatStretch, 0f, 100f) { wLatStretch = it }
-                WeightSliderRow("weightPinkyStretch", "Pinky Stretch Bigram (PSB) büntetése", wPinkyStretch, 0f, 100f) { wPinkyStretch = it }
-                WeightSliderRow("weightRedirect", "Egykezes irányváltás (Redirect) büntetése", wRedirect, 0f, 100f) { wRedirect = it }
-                WeightSliderRow("weightSpaceSfs1", "Szóközös ugrás (Space SFS-1) büntetése", wSpaceSfs1, 0f, 100f) { wSpaceSfs1 = it }
+                WeightSliderRow("weightCharReachEffort", tr("Karakter elérési terhelés súlya", "Character Reach Effort Weight"), wCharReach, 0f, 50f) { wCharReach = it }
+                WeightSliderRow("weightGravity", tr("Alap gravitációs / statikus terhelés súlya", "Base Gravity / Static Effort Weight"), wGravity, 0f, 10f) { wGravity = it }
+                WeightSliderRow("weightHandImbalance", tr("Kéz aszimmetria büntetés (50-50%-tól eltérés)", "Hand Imbalance Penalty (Deviation from 50-50%)"), wHandImb, 0f, 50f) { wHandImb = it }
+                WeightSliderRow("weightPinkyOff", tr("Kisujj alapgomb kívüli használat büntetése", "Pinky Off-Home Key Usage Penalty"), wPinkyOff, 0f, 50f) { wPinkyOff = it }
+                WeightSliderRow("weightSfb", tr("Azonos ujjas bigram (SFB) büntetés", "Same-Finger Bigram (SFB) Penalty"), wSfb, 0f, 150f) { wSfb = it }
+                WeightSliderRow("weightFullScissor", tr("Full Scissor Bigram (FSB) büntetése", "Full Scissor Bigram (FSB) Penalty"), wFullScissor, 0f, 150f) { wFullScissor = it }
+                WeightSliderRow("weightHalfScissor", tr("Half Scissor Bigram (HSB) büntetése", "Half Scissor Bigram (HSB) Penalty"), wHalfScissor, 0f, 100f) { wHalfScissor = it }
+                WeightSliderRow("weightLateralStretch", tr("Lateral Stretch Bigram (LSB) büntetése", "Lateral Stretch Bigram (LSB) Penalty"), wLatStretch, 0f, 100f) { wLatStretch = it }
+                WeightSliderRow("weightPinkyStretch", tr("Pinky Stretch Bigram (PSB) büntetése", "Pinky Stretch Bigram (PSB) Penalty"), wPinkyStretch, 0f, 100f) { wPinkyStretch = it }
+                WeightSliderRow("weightRedirect", tr("Egykezes irányváltás (Redirect) büntetése", "One-Hand Redirect Penalty"), wRedirect, 0f, 100f) { wRedirect = it }
+                WeightSliderRow("weightSpaceSfs1", tr("Szóközös ugrás (Space SFS-1) büntetése", "Space Skipgram (Space SFS-1) Penalty"), wSpaceSfs1, 0f, 100f) { wSpaceSfs1 = it }
 
                 Spacer(Modifier.height(10.dp))
                 Text(
-                    text = "JUTALMAZÓ ÉS SOR SÚLYOK (Rewards & Row Weights)",
+                    text = tr(
+                        "JUTALMAZÓ ÉS SOR SÚLYOK (Rewards & Row Weights)",
+                        "REWARD & ROW WEIGHTS"
+                    ),
                     style = MaterialTheme.typography.labelLarge.copy(
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.secondary
                     ),
                     modifier = Modifier.padding(vertical = 4.dp)
                 )
-                WeightSliderRow("weightHomeRow", "Alapsor (Home Row) jutalom", wHomeRow, 0f, 10f) { wHomeRow = it }
-                WeightSliderRow("weightAlternation", "Alternálás (1-1-1) jutalom", wAlternation, 0f, 20f) { wAlternation = it }
-                WeightSliderRow("weightRoll", "2-Roll gördülés jutalom", wRoll, 0f, 20f) { wRoll = it }
-                WeightSliderRow("weightThreeRoll", "3-Roll gördülés jutalom", wThreeRoll, 0f, 30f) { wThreeRoll = it }
+                WeightSliderRow("weightHomeRow", tr("Alapsor (Home Row) jutalom", "Home Row Reward"), wHomeRow, 0f, 10f) { wHomeRow = it }
+                WeightSliderRow("weightAlternation", tr("Alternálás (1-1-1) jutalom", "Hand Alternation (1-1-1) Reward"), wAlternation, 0f, 20f) { wAlternation = it }
+                WeightSliderRow("weightRoll", tr("2-Roll gördülés jutalom", "2-Roll Bigram Reward"), wRoll, 0f, 20f) { wRoll = it }
+                WeightSliderRow("weightThreeRoll", tr("3-Roll gördülés jutalom", "3-Roll Trigram Reward"), wThreeRoll, 0f, 30f) { wThreeRoll = it }
 
-                WeightSliderRow("weightRow0", "0. sor (számsor) büntetés", wRow0, 0f, 50f) { wRow0 = it }
-                WeightSliderRow("weightRow1", "1. sor (felső betűsor) büntetés", wRow1, 0f, 50f) { wRow1 = it }
-                WeightSliderRow("weightRow2", "2. sor (alapsor) büntetés", wRow2, 0f, 50f) { wRow2 = it }
-                WeightSliderRow("weightRow3", "3. sor (alsó betűsor) büntetés", wRow3, 0f, 50f) { wRow3 = it }
-                WeightSliderRow("weightRow4", "4. sor büntetés", wRow4, 0f, 50f) { wRow4 = it }
-                WeightSliderRow("weightRow5", "5. sor (Thumb / hüvelykujj sor) büntetés", wRow5, 0f, 50f) { wRow5 = it }
+                WeightSliderRow("weightRow0", tr("0. sor (számsor) büntetés", "Row 0 (Number Row) Penalty"), wRow0, 0f, 50f) { wRow0 = it }
+                WeightSliderRow("weightRow1", tr("1. sor (felső betűsor) büntetés", "Row 1 (Top Letter Row) Penalty"), wRow1, 0f, 50f) { wRow1 = it }
+                WeightSliderRow("weightRow2", tr("2. sor (alapsor) büntetés", "Row 2 (Home Row) Penalty"), wRow2, 0f, 50f) { wRow2 = it }
+                WeightSliderRow("weightRow3", tr("3. sor (alsó betűsor) büntetés", "Row 3 (Bottom Letter Row) Penalty"), wRow3, 0f, 50f) { wRow3 = it }
+                WeightSliderRow("weightRow4", tr("4. sor büntetés", "Row 4 Penalty"), wRow4, 0f, 50f) { wRow4 = it }
+                WeightSliderRow("weightRow5", tr("5. sor (Thumb / hüvelykujj sor) büntetés", "Row 5 (Thumb Row) Penalty"), wRow5, 0f, 50f) { wRow5 = it }
             }
         }
     }
@@ -1884,6 +2072,7 @@ private fun detectCorpusFromLog(runDirName: String): String? {
 fun GeneratedLayoutsBrowserScreen(
     runTask: (String, suspend () -> Unit) -> Unit
 ) {
+    val lang = LocalAppLanguage.current
     var groups by remember { mutableStateOf(scanGeneratedKeyboards()) }
     var expandedGroups by remember(groups) {
         mutableStateOf(groups.map { it.runName }.toSet())
@@ -1901,9 +2090,8 @@ fun GeneratedLayoutsBrowserScreen(
     var analysisResult by remember { mutableStateOf<LayoutAnalysisResult?>(null) }
     var heatmapBitmap by remember { mutableStateOf<ImageBitmap?>(null) }
     var heatmapFile by remember { mutableStateOf<File?>(null) }
-    var yamlAndLogText by remember {
-        mutableStateOf("Válassz ki egy generált layoutot a bal oldali listából a megnyitáshoz és az automatikus elemzéshez!")
-    }
+    var yamlAndLogTextHu by remember { mutableStateOf<String?>(null) }
+    var yamlAndLogTextEn by remember { mutableStateOf<String?>(null) }
 
     fun openAndAnalyzeGeneratedLayout(relPath: String, autoDetectCorpus: Boolean) {
         val genDir = File("generatedkeyboards")
@@ -1921,7 +2109,7 @@ fun GeneratedLayoutsBrowserScreen(
         }
         val finalCorpus = corpusToUse ?: return
 
-        runTask("Generált layout elemzése: $relPath") {
+        runTask(lang.pick("Generált layout elemzése: $relPath", "Analyzing generated layout: $relPath")) {
             // Meghívjuk a módosított elemzőt folder = "generatedkeyboards" paraméterrel
             val res = completeLayoutAnalysis(
                 layoutName = relPath,
@@ -1948,11 +2136,19 @@ fun GeneratedLayoutsBrowserScreen(
             analysisResult = res
             heatmapFile = if (expectedHeatmap.exists()) expectedHeatmap else null
             heatmapBitmap = bmp
-            yamlAndLogText = buildString {
+            yamlAndLogTextHu = buildString {
                 appendLine("=== YAML DEFINÍCIÓ (${yamlFile.name}) ===")
                 appendLine(yText.trim().replace("\t", "    "))
                 if (lText.isNotBlank()) {
                     appendLine("\n=== BILLENTYŰZETKIOSZTÁSHOZ TARTOZÓ OPTIMALIZÁLÁSI LOG ($parentDirName.txt) ===")
+                    appendLine(lText.trim().replace("\t", "    "))
+                }
+            }
+            yamlAndLogTextEn = buildString {
+                appendLine("=== YAML DEFINITION (${yamlFile.name}) ===")
+                appendLine(yText.trim().replace("\t", "    "))
+                if (lText.isNotBlank()) {
+                    appendLine("\n=== OPTIMIZATION LOG FOR THIS KEYBOARD LAYOUT ($parentDirName.txt) ===")
                     appendLine(lText.trim().replace("\t", "    "))
                 }
             }
@@ -1965,8 +2161,8 @@ fun GeneratedLayoutsBrowserScreen(
     ) {
         // Bal oldali fa / lista a generált layoutokhoz
         SectionCard(
-            title = "Generált Layoutok",
-            subtitle = "generatedkeyboards mappa",
+            title = tr("Generált Layoutok", "Generated Layouts"),
+            subtitle = tr("generatedkeyboards mappa", "generatedkeyboards directory"),
             modifier = Modifier.width(400.dp).fillMaxHeight(),
             headerTrailing = {
                 Row {
@@ -1974,13 +2170,13 @@ fun GeneratedLayoutsBrowserScreen(
                         groups = scanGeneratedKeyboards()
                         corpora = listAnalyzedCorpora()
                     }) {
-                        Icon(Icons.Default.Refresh, contentDescription = "Mappa frissítése")
+                        Icon(Icons.Default.Refresh, contentDescription = tr("Mappa frissítése", "Refresh Folder"))
                     }
                 }
             }
         ) {
             DropdownSelector(
-                label = "Elemzési korpusz",
+                label = tr("Elemzési korpusz", "Analysis Corpus"),
                 options = corpora,
                 selected = selectedCorpus,
                 onSelect = { newCorpus ->
@@ -1992,7 +2188,7 @@ fun GeneratedLayoutsBrowserScreen(
 
             if (groups.isEmpty()) {
                 Text(
-                    text = "A 'generatedkeyboards' mappa jelenleg üres.",
+                    text = tr("A 'generatedkeyboards' mappa jelenleg üres.", "The 'generatedkeyboards' directory is currently empty."),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -2008,6 +2204,11 @@ fun GeneratedLayoutsBrowserScreen(
                         groups.forEach { group ->
                             item(key = "group_${group.runName}") {
                                 val isExpanded = expandedGroups.contains(group.runName)
+                                val displayGroupName = if (group.runName == "(Gyökérmappa)") {
+                                    tr("(Gyökérmappa)", "(Root Folder)")
+                                } else {
+                                    group.runName
+                                }
                                 Surface(
                                     shape = RoundedCornerShape(8.dp),
                                     color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.55f),
@@ -2033,7 +2234,7 @@ fun GeneratedLayoutsBrowserScreen(
                                         )
                                         Spacer(Modifier.width(8.dp))
                                         Text(
-                                            text = group.runName,
+                                            text = displayGroupName,
                                             style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold),
                                             maxLines = 1,
                                             overflow = TextOverflow.Ellipsis,
@@ -2113,21 +2314,37 @@ fun GeneratedLayoutsBrowserScreen(
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
             HeatmapViewerCard(
-                title = selectedRelativePath?.let { "Generált Kiosztás Hőtérképe — $it" } ?: "Generált Kiosztás Hőtérképe",
+                title = selectedRelativePath?.let {
+                    tr("Generált Kiosztás Hőtérképe — $it", "Generated Layout Heatmap — $it")
+                } ?: tr("Generált Kiosztás Hőtérképe", "Generated Layout Heatmap"),
                 imageBitmap = heatmapBitmap,
                 imageFile = heatmapFile,
-                emptyMessage = "Kattints egy generált .yaml fájlra a bal oldali listában az automatikus elemzéshez és a hőtérkép megjelenítéséhez!",
+                emptyMessage = tr(
+                    "Kattints egy generált .yaml fájlra a bal oldali listában az automatikus elemzéshez és a hőtérkép megjelenítéséhez!",
+                    "Click on a generated .yaml file in the left list to automatically analyze it and display its heatmap!"
+                ),
                 minHeight = 380.dp
             )
 
             LayoutStatsSummaryCard(
                 result = analysisResult,
-                extraSubtitle = selectedRelativePath?.let { "Forrás: generatedkeyboards/$it | Korpusz: ${selectedCorpus ?: "-"}" }
+                extraSubtitle = selectedRelativePath?.let {
+                    tr(
+                        "Forrás: generatedkeyboards/$it | Korpusz: ${selectedCorpus ?: "-"}",
+                        "Source: generatedkeyboards/$it | Corpus: ${selectedCorpus ?: "-"}"
+                    )
+                }
             )
 
             SectionCard(
-                title = "YAML definíció és billentyűzetkiosztáshoz tartozó optimalizálási Log",
-                subtitle = "A kiválasztott generált fájl és az ImprovementLogs napló tartalma"
+                title = tr(
+                    "YAML definíció és billentyűzetkiosztáshoz tartozó optimalizálási Log",
+                    "YAML Definition and Optimization Log"
+                ),
+                subtitle = tr(
+                    "A kiválasztott generált fájl és az ImprovementLogs napló tartalma",
+                    "Contents of the selected generated layout file and its ImprovementLogs entry"
+                )
             ) {
                 Surface(
                     shape = RoundedCornerShape(10.dp),
@@ -2136,6 +2353,10 @@ fun GeneratedLayoutsBrowserScreen(
                 ) {
                     val vScroll = rememberScrollState()
                     val hScroll = rememberScrollState()
+                    val shownYamlLog = lang.pick(
+                        yamlAndLogTextHu ?: "Válassz ki egy generált layoutot a bal oldali listából a megnyitáshoz és az automatikus elemzéshez!",
+                        yamlAndLogTextEn ?: "Select a generated layout from the left list to open and automatically analyze it!"
+                    )
                     Box(
                         modifier = Modifier
                             .fillMaxSize()
@@ -2144,7 +2365,7 @@ fun GeneratedLayoutsBrowserScreen(
                             .horizontalScroll(hScroll)
                     ) {
                         Text(
-                            text = yamlAndLogText,
+                            text = shownYamlLog,
                             fontFamily = FontFamily.Monospace,
                             fontSize = 12.sp,
                             lineHeight = 18.sp
