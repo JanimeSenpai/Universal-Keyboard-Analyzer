@@ -1836,7 +1836,7 @@ fun GeneratedLayoutsBrowserScreen(
                 appendLine("=== YAML DEFINÍCIÓ (${yamlFile.name}) ===")
                 appendLine(yText.trim().replace("\t", "    "))
                 if (lText.isNotBlank()) {
-                    appendLine("\n=== TARTOZÓ OPTIMALIZÁLÁSI LOG ($parentDirName.txt) ===")
+                    appendLine("\n=== BILLENTYŰZETKIOSZTÁSHOZ TARTOZÓ OPTIMALIZÁLÁSI LOG ($parentDirName.txt) ===")
                     appendLine(lText.trim().replace("\t", "    "))
                 }
             }
@@ -2010,7 +2010,7 @@ fun GeneratedLayoutsBrowserScreen(
             )
 
             SectionCard(
-                title = "YAML Definíció és Tartozó Optimalizálási Log",
+                title = "YAML definíció és billentyűzetkiosztáshoz tartozó optimalizálási Log",
                 subtitle = "A kiválasztott generált fájl és az ImprovementLogs napló tartalma"
             ) {
                 Surface(
