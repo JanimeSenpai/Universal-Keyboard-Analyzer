@@ -1,0 +1,21 @@
+=== CHIPS-N-SALSA (SelfTuningLam SA + 2-OPT) OPTIMALIZÁLÁSI LOG ===
+Billentyűzet: qwertycolstag_en
+Futtatás időpontja: 2026-11-14-16-31-13
+Összes szál: 256 (Eredeti: 25, Shuffled: 231) | Lépés/szál: 50000
+Hűtési ütemezés: SelfTuningLam | Hüvelykujj: Bal=false, Jobb=false
+Teljes futásidő: 455,1 mp
+Korpusz neve: monke.txt
+
+--- TOP 3 EREDMÉNY ---
+1. Helyezett:
+ - Effort pontszám: -7,1296
+ - Származás: Chips-n-Salsa SelfTuningLam (Shuffled)
+
+2. Helyezett:
+ - Effort pontszám: -5,6733
+ - Származás: Chips-n-Salsa SelfTuningLam (Shuffled)
+
+3. Helyezett:
+ - Effort pontszám: -5,2503
+ - Származás: Chips-n-Salsa SelfTuningLam (Shuffled)
+

@@ -1,0 +1,23 @@
+name: "LTSN Ergo Mini"
+#we have an unnecessary amount of keys defined for this layout
+hardware:
+  stagger_type: "columnar_stagger" # "row_stagger" or "columnar_stagger"
+  num_rows: 5 #thumb row also counts!
+  home_row_index: 2 #never forget to set the homerow index!
+  optimal_finger_assignment: false
+  angle_of_approach_degrees: 0.0 #ZERO for split keyboards! (usually 10.0 for normal keyboards)
+  left:
+    offsets: [ 0.50, 0.50, 0.25, 0.00, 0.25, 0.38]
+    fingers: ["P", "P", "R", "M", "I", "I"]
+    anchors: [ 1,1,2,3,4,4] #anchor is the home column of the finger that presses keys in this column
+  right:
+    offsets: [ 0.38, 0.25, 0.00, 0.25, 0.50, 0.50]
+    fingers: [ "I", "I", "M", "R", "P", "P"]
+    anchors: [1,1,2,3,4,4]
+matrix: |
+  _ _ ü ú _ _   _ _ f _ _ _
+  _ - á u ó ö   p b s m c q
+  í i a e é ,   z l n t k w
+  ű . ő o y h   g r v d j x
+thumb_left: "_"
+thumb_right: "_"

@@ -1,0 +1,20 @@
+=== OPTIMALIZÁLÁSI LOG ===
+Billentyűzet: ltsnergorowstagger
+Futtatás időpontja: 2026-11-07-22-06-48
+Futtatott SA iterációk szálanként: Párhuzamos futás
+Összes szál: 128 (Ebből eredeti: 12, Hot Shuffle: 116)
+Teljes futásidő: 1460,4 mp
+
+--- TOP 3 EREDMÉNY ---
+1. Helyezett:
+ - Effort pontszám: 41,0651
+ - Származás: Hot Shuffle (Kevert kezdőállapot)
+
+2. Helyezett:
+ - Effort pontszám: 41,0651
+ - Származás: Hot Shuffle (Kevert kezdőállapot)
+
+3. Helyezett:
+ - Effort pontszám: 41,1240
+ - Származás: Hot Shuffle (Kevert kezdőállapot)
+

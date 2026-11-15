@@ -1,0 +1,20 @@
+=== CHIPS-N-SALSA (SelfTuningLam SA + 2-OPT) OPTIMALIZÁLÁSI LOG ===
+Billentyűzet: LTSN Ergo Mini
+Futtatás időpontja: 2026-11-14-14-15-28
+Összes szál: 32 (Eredeti: 3, Shuffled: 29) | Lépés/szál: 50000
+Hűtési ütemezés: SelfTuningLam | Hüvelykujj: Bal=false, Jobb=false
+Teljes futásidő: 472,5 mp
+
+--- TOP 3 EREDMÉNY ---
+1. Helyezett:
+ - Effort pontszám: 44,8737
+ - Származás: Chips-n-Salsa SelfTuningLam (Eredeti)
+
+2. Helyezett:
+ - Effort pontszám: 45,6253
+ - Származás: Chips-n-Salsa SelfTuningLam (Shuffled)
+
+3. Helyezett:
+ - Effort pontszám: 45,8264
+ - Származás: Chips-n-Salsa SelfTuningLam (Shuffled)
+

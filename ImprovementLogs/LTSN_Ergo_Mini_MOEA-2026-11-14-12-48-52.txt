@@ -1,0 +1,20 @@
+=== MOEA FRAMEWORK (GA + PMX + 2-OPT) OPTIMALIZÁLÁSI LOG ===
+Billentyűzet: LTSN Ergo Mini
+Futtatás időpontja: 2026-11-14-12-48-52
+Szigetek száma: 32 | Kiértékelés/sziget: 350000 | Populáció: 50
+Hüvelykujj engedélyezve: Bal=false, Jobb=false
+Teljes futásidő: 2818,4 mp
+
+--- TOP 3 EREDMÉNY ---
+1. Helyezett:
+ - Effort pontszám: 45,0948
+ - Származás: MOEA Framework GA (PMX + 2-opt)
+
+2. Helyezett:
+ - Effort pontszám: 46,4769
+ - Származás: MOEA Framework GA (PMX + 2-opt)
+
+3. Helyezett:
+ - Effort pontszám: 46,8540
+ - Származás: MOEA Framework GA (PMX + 2-opt)
+

@@ -1,0 +1,22 @@
+name: "ltsnergorowstagger"
+hardware:
+  stagger_type: "row_stagger" # Átállítva sor-eltolásosra
+  num_rows: 5
+  home_row_index: 2
+  optimal_finger_assignment: false
+  angle_of_approach_degrees: 0.0
+  left:
+    offsets: [-0.25,-0.25, 0.0, -0.5] # Sorok eltolása (0., 1., 2., 3. sor)
+    fingers: [ "P", "P", "R", "M", "I", "I"]
+    anchors: [1,1,2,3,4,4]
+  right:
+    offsets: [ 0.25, 0.25, 0.0, 0.5] # Tükrözött sor-eltolások a szimmetria miatt
+    fingers: [ "I", "I", "M", "R", "P", "P"]
+    anchors: [1,1,2,3,4,4]
+matrix: |
+  _ _ í . _ _   _ _ p w _ _
+  ú - á d u ö   v j z r f q
+  ü i e y a o   m s l n t x
+  _ ű ó , é ő   g k b h c _
+thumb_left: "_"
+thumb_right: "_"

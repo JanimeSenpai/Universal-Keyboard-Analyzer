@@ -1,0 +1,20 @@
+=== OPTIMALIZÁLÁSI LOG ===
+Billentyűzet: LTSN Ergo Mini
+Futtatás időpontja: 2026-11-07-20-34-04
+Futtatott SA iterációk szálanként: Párhuzamos futás
+Összes szál: 256 (Ebből eredeti: 25, Hot Shuffle: 231)
+Teljes futásidő: 2930,9 mp
+
+--- TOP 3 EREDMÉNY ---
+1. Helyezett:
+ - Effort pontszám: 43,3178
+ - Származás: Hot Shuffle (Kevert kezdőállapot)
+
+2. Helyezett:
+ - Effort pontszám: 43,3178
+ - Származás: Hot Shuffle (Kevert kezdőállapot)
+
+3. Helyezett:
+ - Effort pontszám: 43,9308
+ - Származás: Hot Shuffle (Kevert kezdőállapot)
+

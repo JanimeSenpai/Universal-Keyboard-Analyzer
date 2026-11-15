@@ -1,0 +1,20 @@
+=== MOEA FRAMEWORK (GA + PMX + TOPOLÓGIA-MUTÁCIÓK + 2-OPT) LOG ===
+Billentyűzet: LTSN Ergo Mini
+Futtatás időpontja: 2026-11-14-13-33-35
+Szigetek száma: 32 | Kiértékelés/sziget: 100000 | Populáció: 40
+Hüvelykujj engedélyezve: Bal=false, Jobb=false
+Teljes futásidő: 987,7 mp
+
+--- TOP 3 EREDMÉNY ---
+1. Helyezett:
+ - Effort pontszám: 44,5833
+ - Származás: MOEA Framework GA (PMX + Topológia-mutációk + 2-opt)
+
+2. Helyezett:
+ - Effort pontszám: 46,4902
+ - Származás: MOEA Framework GA (PMX + Topológia-mutációk + 2-opt)
+
+3. Helyezett:
+ - Effort pontszám: 46,5842
+ - Származás: MOEA Framework GA (PMX + Topológia-mutációk + 2-opt)
+

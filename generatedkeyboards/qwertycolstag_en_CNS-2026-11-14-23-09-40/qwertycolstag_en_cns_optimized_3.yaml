@@ -1,0 +1,23 @@
+name: "qwertycolstag_en"
+#we have an unnecessary amount of keys defined for this layout
+hardware:
+  stagger_type: "columnar_stagger" # "row_stagger" or "columnar_stagger"
+  num_rows: 5 #thumb row also counts
+  home_row_index: 2
+  optimal_finger_assignment: false
+  angle_of_approach_degrees: 0.0
+  left:
+    offsets: [ 0.50, 0.50, 0.25, 0.00, 0.25, 0.38]
+    fingers: ["P", "P", "R", "M", "I", "I"]
+    anchors: [1,1,2,3,4,4] #anchor is the home column of the finger that presses keys in this column
+  right:
+    offsets: [ 0.38, 0.25, 0.00, 0.25, 0.50, 0.50]
+    fingers: [ "I", "I", "M", "R", "P", "P"]
+    anchors: [1,1,2,3,4,4]
+matrix: |
+  _ _ _ _ _ _   _ _ m _ _ _
+  _ _ k a . _   v f c r p _
+  _ e h o i u   d s l n t q
+  _ _ x - , _   g y w b j z
+thumb_left: "_"
+thumb_right: "_"
