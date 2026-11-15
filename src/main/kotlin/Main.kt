@@ -24,6 +24,7 @@ import keyboard_analysis.launchLateralStretchAnalysis
 import keyboard_analysis.launchPinkyStretchAnalysis
 import keyboard_analysis.layoutSandbox
 import gui.launchGui
+import composegui.launchComposeGui
 import kotlin.system.exitProcess
 
 fun main() {
@@ -34,7 +35,7 @@ val currentLocale: Locale = Locale.HU
 
 fun commandLineInterface(){
     println("this is the command line interface of corpora analyzer")
-    println("for available commands enter \"commands\" (or \"gui\" to launch the graphical user interface)")
+    println("for available commands enter \"commands\" (or \"gui\" for Swing GUI, \"compose\" for Compose Multiplatform GUI)")
     readcommands()
 
 }
@@ -48,6 +49,7 @@ fun readcommands(){
         when(command){
             "commands" -> listcommands()
             "gui" -> launchGui()
+            "compose", "cgui" -> launchComposeGui()
             "CorpusAnalyzer.preprocess file"-> preprocess()
             "pf"-> preprocess()
             "letter frequency"->{
@@ -100,6 +102,7 @@ fun readcommands(){
 
 fun listcommands(){
     println("\"gui\" -> launchGui()\n" +
+            "\"compose\" / \"cgui\" -> launchComposeGui()\n" +
             "\"CorpusAnalyzer.preprocess file\"-> preprocess()\n" +
             "\"pf\"-> preprocess()\n" +
             "\"letter frequency\"->{\n  launchletterfrequency()\n" +
