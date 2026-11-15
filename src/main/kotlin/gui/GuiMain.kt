@@ -5,6 +5,11 @@ import EffortModel.*
 import KeyboardLayoutGeneration.*
 import keyboard_analysis.*
 import java.awt.*
+import java.awt.event.MouseAdapter
+import java.awt.event.MouseEvent
+import java.awt.event.MouseWheelEvent
+import java.awt.geom.AffineTransform
+import java.awt.image.BufferedImage
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.OutputStream
@@ -18,6 +23,284 @@ import javax.swing.table.DefaultTableModel
 import javax.swing.tree.DefaultMutableTreeNode
 import javax.swing.tree.DefaultTreeModel
 import javax.swing.tree.TreeSelectionModel
+import kotlin.math.max
+import kotlin.math.min
+import kotlin.math.roundToInt
+
+/**
+ * Magas felbontású (HiDPI-tudatos), natív BufferedImage megjelenítő panel.
+ * Elkerüli a Swing ImageIcon alacsony logikai felbontásra történő előzetes lekicsinyítését,
+ * és közvetlenül a képernyő fizikai (device) pixeleire skáláz többlépcsős bicubic interpolációval.
+ */
+class HeatmapImagePanel(private var emptyMessage: String) : JPanel(BorderLayout()) {
+    private var sourceImage: BufferedImage? = null
+    private var sourceFile: File? = null
+    private var fitToWindow: Boolean = true
+    private var zoomFactor: Double = 1.0
+
+    // Gyorsítótár a fizikai pixelekre előre átméretezett képhez
+    private var cachedScaledImage: BufferedImage? = null
+    private var cachedPhysW: Int = -1
+    private var cachedPhysH: Int = -1
+
+    private val zoomLabel = JLabel("Illesztve").apply {
+        font = Font("SansSerif", Font.PLAIN, 11)
+        foreground = Color(90, 90, 90)
+    }
+
+    private val canvas = object : JPanel() {
+        init {
+            background = Color(245, 245, 245)
+            isOpaque = true
+        }
+
+        override fun getPreferredSize(): Dimension {
+            val img = sourceImage ?: return Dimension(400, 260)
+            return if (fitToWindow) {
+                Dimension(400, 260)
+            } else {
+                Dimension((img.width * zoomFactor).roundToInt(), (img.height * zoomFactor).roundToInt())
+            }
+        }
+
+        override fun paintComponent(g: Graphics) {
+            super.paintComponent(g)
+            val g2 = g.create() as Graphics2D
+            try {
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.KEY_ANTIALIASING.let { RenderingHints.VALUE_ANTIALIAS_ON })
+                g2.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON)
+                g2.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BICUBIC)
+                g2.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY)
+                g2.setRenderingHint(RenderingHints.KEY_ALPHA_INTERPOLATION, RenderingHints.VALUE_ALPHA_INTERPOLATION_QUALITY)
+
+                val img = sourceImage
+                if (img == null) {
+                    g2.color = Color(110, 110, 110)
+                    g2.font = Font("SansSerif", Font.PLAIN, 13)
+                    val fm = g2.fontMetrics
+                    val tx = max(10, (width - fm.stringWidth(emptyMessage)) / 2)
+                    val ty = max(20, (height + fm.ascent) / 2)
+                    g2.drawString(emptyMessage, tx, ty)
+                    return
+                }
+
+                // Lekérdezzük a kijelző valós HiDPI skálázási faktorát (pl. 1.25x, 1.5x, 2.0x Windows-on)
+                val tx: AffineTransform = g2.transform
+                val dpiScaleX = if (tx.scaleX > 0.0) tx.scaleX else 1.0
+                val dpiScaleY = if (tx.scaleY > 0.0) tx.scaleY else 1.0
+
+                val pad = 8
+                val availW = max(50, width - pad * 2)
+                val availH = max(50, height - pad * 2)
+
+                val logicalScale = if (fitToWindow) {
+                    min(availW.toDouble() / img.width, availH.toDouble() / img.height)
+                } else {
+                    zoomFactor
+                }
+
+                val drawLogicalW = max(1, (img.width * logicalScale).roundToInt())
+                val drawLogicalH = max(1, (img.height * logicalScale).roundToInt())
+                val offsetX = max(0, (width - drawLogicalW) / 2)
+                val offsetY = max(0, (height - drawLogicalH) / 2)
+
+                // A célzott fizikai (eszköz) felbontás kiszámítása
+                val targetPhysW = max(1, (drawLogicalW * dpiScaleX).roundToInt())
+                val targetPhysH = max(1, (drawLogicalH * dpiScaleY).roundToInt())
+
+                if (fitToWindow) {
+                    val pct = (logicalScale * 100.0).roundToInt()
+                    zoomLabel.text = "Illesztve ($pct% | Natív: ${img.width}×${img.height} px)"
+                } else {
+                    val pct = (zoomFactor * 100.0).roundToInt()
+                    zoomLabel.text = "Zoom: $pct% (Natív: ${img.width}×${img.height} px)"
+                }
+
+                val scaledImg = getOrCreateHighQualityScaled(img, targetPhysW, targetPhysH)
+
+                // Közvetlenül 1:1 fizikai pixelen rajzoljuk ki a képet, megkerülve a Swing elmosódott skálázását
+                val origTransform = g2.transform
+                g2.translate(offsetX.toDouble(), offsetY.toDouble())
+                g2.scale(1.0 / dpiScaleX, 1.0 / dpiScaleY)
+                g2.drawImage(scaledImg, 0, 0, null)
+                g2.transform = origTransform
+            } finally {
+                g2.dispose()
+            }
+        }
+    }
+
+    private val scrollPane = JScrollPane(canvas).apply {
+        border = null
+        horizontalScrollBarPolicy = ScrollPaneConstants.HORIZONTAL_SCROLLBAR_AS_NEEDED
+        verticalScrollBarPolicy = ScrollPaneConstants.VERTICAL_SCROLLBAR_AS_NEEDED
+        verticalScrollBar.unitIncrement = 16
+        horizontalScrollBar.unitIncrement = 16
+    }
+
+    init {
+        val toolbar = JPanel(FlowLayout(FlowLayout.RIGHT, 6, 2)).apply {
+            background = Color(238, 238, 242)
+            border = BorderFactory.createMatteBorder(0, 0, 1, 0, Color(210, 210, 215))
+
+            val btnFit = JButton("Ablakhoz igazítás").apply {
+                font = Font("SansSerif", Font.PLAIN, 11)
+                margin = Insets(1, 6, 1, 6)
+                addActionListener {
+                    fitToWindow = true
+                    revalidateAndRepaint()
+                }
+            }
+            val btn100 = JButton("100% (Eredeti)").apply {
+                font = Font("SansSerif", Font.PLAIN, 11)
+                margin = Insets(1, 6, 1, 6)
+                addActionListener {
+                    fitToWindow = false
+                    zoomFactor = 1.0
+                    revalidateAndRepaint()
+                }
+            }
+            val btnZoomOut = JButton("−").apply {
+                font = Font("SansSerif", Font.BOLD, 11)
+                margin = Insets(1, 6, 1, 6)
+                toolTipText = "Kicsinyítés"
+                addActionListener {
+                    stepZoom(0.85)
+                }
+            }
+            val btnZoomIn = JButton("+").apply {
+                font = Font("SansSerif", Font.BOLD, 11)
+                margin = Insets(1, 6, 1, 6)
+                toolTipText = "Nagyítás"
+                addActionListener {
+                    stepZoom(1.18)
+                }
+            }
+            val btnOpenExternal = JButton("Megnyitás képnézegetőben").apply {
+                font = Font("SansSerif", Font.PLAIN, 11)
+                margin = Insets(1, 6, 1, 6)
+                addActionListener {
+                    val f = sourceFile
+                    if (f != null && f.exists() && Desktop.isDesktopSupported()) {
+                        try {
+                            Desktop.getDesktop().open(f)
+                        } catch (_: Exception) {
+                        }
+                    }
+                }
+            }
+
+            add(zoomLabel)
+            add(btnFit)
+            add(btn100)
+            add(btnZoomOut)
+            add(btnZoomIn)
+            add(btnOpenExternal)
+        }
+
+        // Ctrl + egérgörgő vagy sima görgő nagyítás támogatása
+        canvas.addMouseWheelListener { e: MouseWheelEvent ->
+            if (e.isControlDown || fitToWindow) {
+                if (e.wheelRotation < 0) stepZoom(1.12) else stepZoom(0.89)
+                e.consume()
+            }
+        }
+
+        // Dupla kattintással váltás az Ablakhoz igazítás és a 100%-os natív méret között
+        canvas.addMouseListener(object : MouseAdapter() {
+            override fun mouseClicked(e: MouseEvent) {
+                if (e.clickCount == 2 && SwingUtilities.isLeftMouseButton(e)) {
+                    fitToWindow = !fitToWindow
+                    if (!fitToWindow) zoomFactor = 1.0
+                    revalidateAndRepaint()
+                }
+            }
+        })
+
+        add(toolbar, BorderLayout.NORTH)
+        add(scrollPane, BorderLayout.CENTER)
+    }
+
+    private fun stepZoom(multiplier: Double) {
+        val img = sourceImage ?: return
+        if (fitToWindow) {
+            val availW = max(50, canvas.width - 16)
+            val availH = max(50, canvas.height - 16)
+            zoomFactor = min(availW.toDouble() / img.width, availH.toDouble() / img.height)
+            fitToWindow = false
+        }
+        zoomFactor = (zoomFactor * multiplier).coerceIn(0.25, 3.0)
+        revalidateAndRepaint()
+    }
+
+    private fun revalidateAndRepaint() {
+        canvas.revalidate()
+        scrollPane.revalidate()
+        canvas.repaint()
+    }
+
+    fun setImage(img: BufferedImage?, file: File? = null) {
+        sourceImage = img
+        sourceFile = file
+        cachedScaledImage = null
+        cachedPhysW = -1
+        cachedPhysH = -1
+        revalidateAndRepaint()
+    }
+
+    fun showMessage(msg: String) {
+        sourceImage = null
+        sourceFile = null
+        cachedScaledImage = null
+        emptyMessage = msg
+        zoomLabel.text = ""
+        revalidateAndRepaint()
+    }
+
+    /**
+     * Többlépcsős (progressive) bicubic átméretezés pontosan a célzott fizikai (device) pixelméretre.
+     * Megakadályozza az élek és feliratok elmosódását vagy recézettségét kicsinyítéskor.
+     */
+    private fun getOrCreateHighQualityScaled(src: BufferedImage, targetW: Int, targetH: Int): BufferedImage {
+        if (targetW == src.width && targetH == src.height) return src
+        val cached = cachedScaledImage
+        if (cached != null && cachedPhysW == targetW && cachedPhysH == targetH) {
+            return cached
+        }
+
+        var current = src
+        var curW = src.width
+        var curH = src.height
+
+        // Ha 50%-nál nagyobb mértékű kicsinyítés kell, lépcsőzetesen felezünk (multi-step downscaling)
+        while (curW / 2 >= targetW && curH / 2 >= targetH) {
+            curW = max(targetW, curW / 2)
+            curH = max(targetH, curH / 2)
+            val stepImg = BufferedImage(curW, curH, BufferedImage.TYPE_INT_ARGB)
+            val g2 = stepImg.createGraphics()
+            g2.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR)
+            g2.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY)
+            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON)
+            g2.drawImage(current, 0, 0, curW, curH, null)
+            g2.dispose()
+            current = stepImg
+        }
+
+        // Végső lépés: Bicubic interpoláció a pontos fizikai pixelméretre
+        val finalImg = BufferedImage(targetW, targetH, BufferedImage.TYPE_INT_ARGB)
+        val g2 = finalImg.createGraphics()
+        g2.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BICUBIC)
+        g2.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY)
+        g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON)
+        g2.drawImage(current, 0, 0, targetW, targetH, null)
+        g2.dispose()
+
+        cachedScaledImage = finalImg
+        cachedPhysW = targetW
+        cachedPhysH = targetH
+        return finalImg
+    }
+}
 
 fun main() {
     launchGui()
@@ -507,9 +790,7 @@ class MainGuiFrame : JFrame("Universal Keyboard Analyzer - Grafikus Felület") {
             tableHeader.font = Font("SansSerif", Font.BOLD, 13)
         }
 
-        val heatmapLabel = JLabel("Válassz egy layoutot és futtasd az elemzést.", SwingConstants.CENTER).apply {
-            horizontalAlignment = SwingConstants.CENTER
-        }
+        val heatmapPanel = HeatmapImagePanel("Válassz egy layoutot és futtasd az elemzést.")
 
         fun updateStatsTable(res: LayoutAnalysisResult) {
             statsTableModel.rowCount = 0
@@ -543,16 +824,10 @@ class MainGuiFrame : JFrame("Universal Keyboard Analyzer - Grafikus Felület") {
                 renderCharEffortlayout(layoutData, tempImg.absolutePath)
                 val img = ImageIO.read(tempImg)
                 if (img != null) {
-                    val maxW = 680
-                    val maxH = 320
-                    val scale = minOf(maxW.toDouble() / img.width, maxH.toDouble() / img.height, 1.0)
-                    val scaled = img.getScaledInstance((img.width * scale).toInt(), (img.height * scale).toInt(), Image.SCALE_SMOOTH)
-                    heatmapLabel.text = ""
-                    heatmapLabel.icon = ImageIcon(scaled)
+                    heatmapPanel.setImage(img, tempImg)
                 }
             } catch (e: Exception) {
-                heatmapLabel.icon = null
-                heatmapLabel.text = "Hőtérkép hiba: ${e.message}"
+                heatmapPanel.showMessage("Hőtérkép hiba: ${e.message}")
             }
         }
 
@@ -688,15 +963,15 @@ class MainGuiFrame : JFrame("Universal Keyboard Analyzer - Grafikus Felület") {
             JSplitPane.VERTICAL_SPLIT,
             JPanel(BorderLayout()).apply {
                 border = TitledBorder("Billentyűzetkiosztás és Hőtérkép")
-                add(JScrollPane(heatmapLabel), BorderLayout.CENTER)
+                add(heatmapPanel, BorderLayout.CENTER)
             },
             JPanel(BorderLayout()).apply {
                 border = TitledBorder("Elemzési statisztikák")
                 add(JScrollPane(statsTable), BorderLayout.CENTER)
             }
         ).apply {
-            resizeWeight = 0.52
-            dividerLocation = 310
+            resizeWeight = 0.58
+            dividerLocation = 380
         }
 
         refreshLists()
@@ -799,7 +1074,7 @@ class MainGuiFrame : JFrame("Universal Keyboard Analyzer - Grafikus Felület") {
         val tfRightFingers = JTextField("I, I, M, R, P, P")
         val tfRightAnchors = JTextField("1, 1, 2, 3, 4, 4")
 
-        val heatmapPreviewLabel = JLabel("Kattints a 'Hőtérkép és Effort Mátrix Generálása' gombra az előnézethez.", SwingConstants.CENTER)
+        val heatmapPreviewPanel = HeatmapImagePanel("Kattints a 'Hőtérkép és Effort Mátrix Generálása' gombra az előnézethez.")
         val matrixOutputArea = JTextArea(8, 40).apply {
             isEditable = false
             font = Font("Consolas", Font.PLAIN, 12)
@@ -1060,12 +1335,7 @@ class MainGuiFrame : JFrame("Universal Keyboard Analyzer - Grafikus Felület") {
 
                         val img = ImageIO.read(outFile)
                         if (img != null) {
-                            val maxW = 700
-                            val maxH = 340
-                            val scale = minOf(maxW.toDouble() / img.width, maxH.toDouble() / img.height, 1.0)
-                            val scaled = img.getScaledInstance((img.width * scale).toInt(), (img.height * scale).toInt(), Image.SCALE_SMOOTH)
-                            heatmapPreviewLabel.text = ""
-                            heatmapPreviewLabel.icon = ImageIcon(scaled)
+                            heatmapPreviewPanel.setImage(img, outFile)
                         }
 
                         val sb = StringBuilder()
@@ -1097,15 +1367,15 @@ class MainGuiFrame : JFrame("Universal Keyboard Analyzer - Grafikus Felület") {
             JSplitPane.VERTICAL_SPLIT,
             JPanel(BorderLayout()).apply {
                 border = TitledBorder("Fizikai Effort Hőtérkép előnézet (custom_effort_heatmap.png)")
-                add(JScrollPane(heatmapPreviewLabel), BorderLayout.CENTER)
+                add(heatmapPreviewPanel, BorderLayout.CENTER)
             },
             JPanel(BorderLayout()).apply {
                 border = TitledBorder("Számított Effort Mátrix (Bal | Jobb)")
                 add(JScrollPane(matrixOutputArea), BorderLayout.CENTER)
             }
         ).apply {
-            resizeWeight = 0.6
-            dividerLocation = 350
+            resizeWeight = 0.65
+            dividerLocation = 410
         }
 
         panel.add(JScrollPane(leftConfigPanel).apply { border = null }, BorderLayout.WEST)
@@ -1486,7 +1756,7 @@ class MainGuiFrame : JFrame("Universal Keyboard Analyzer - Grafikus Felület") {
             tableHeader.font = Font("SansSerif", Font.BOLD, 13)
         }
 
-        val heatmapLabel = JLabel("Válassz ki egy generált layoutot a bal oldali fából a megnyitáshoz és elemzéshez!", SwingConstants.CENTER)
+        val heatmapPanel = HeatmapImagePanel("Válassz ki egy generált layoutot a bal oldali fából a megnyitáshoz és elemzéshez!")
         val yamlAndLogArea = JTextArea().apply {
             isEditable = false
             font = Font("Consolas", Font.PLAIN, 12)
@@ -1615,15 +1885,9 @@ class MainGuiFrame : JFrame("Universal Keyboard Analyzer - Grafikus Felület") {
                     }
 
                     if (img != null) {
-                        val maxW = 660
-                        val maxH = 300
-                        val scale = minOf(maxW.toDouble() / img.width, maxH.toDouble() / img.height, 1.0)
-                        val scaled = img.getScaledInstance((img.width * scale).toInt(), (img.height * scale).toInt(), Image.SCALE_SMOOTH)
-                        heatmapLabel.text = ""
-                        heatmapLabel.icon = ImageIcon(scaled)
+                        heatmapPanel.setImage(img, expectedHeatmap)
                     } else {
-                        heatmapLabel.icon = null
-                        heatmapLabel.text = "Hőtérkép nem található."
+                        heatmapPanel.showMessage("Hőtérkép nem található.")
                     }
 
                     val combinedText = buildString {
@@ -1709,12 +1973,12 @@ class MainGuiFrame : JFrame("Universal Keyboard Analyzer - Grafikus Felület") {
             JSplitPane.VERTICAL_SPLIT,
             JPanel(BorderLayout()).apply {
                 border = TitledBorder("Generált Kiosztás Hőtérképe")
-                add(JScrollPane(heatmapLabel), BorderLayout.CENTER)
+                add(heatmapPanel, BorderLayout.CENTER)
             },
             bottomDetailsSplit
         ).apply {
-            resizeWeight = 0.48
-            dividerLocation = 290
+            resizeWeight = 0.58
+            dividerLocation = 380
         }
 
         refreshBrowserTree()
