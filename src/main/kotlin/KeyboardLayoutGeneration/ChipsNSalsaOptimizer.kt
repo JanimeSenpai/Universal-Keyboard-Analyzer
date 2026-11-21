@@ -293,7 +293,8 @@ fun parallelChipsNSalsaImprovement(
     corpusFileName: String = "huszonkettoHuszonnegyeswikipediahuszonegy.txt",
     leftThumbEnabled: Boolean = false,
     rightThumbEnabled: Boolean = false,
-    folder: String = "keyboards"
+    folder: String = "keyboards",
+    polishTopN: Int = 32
 ) = runBlocking {
     val cleanKeyboardName = keyboardname.removeSuffix(".yaml")
     val originalYamlFile = LayoutParser.resolveLayoutFile(cleanKeyboardName, folder) ?: File("$folder/${cleanKeyboardName}.yaml")
@@ -307,12 +308,12 @@ fun parallelChipsNSalsaImprovement(
     val corpusData = CorpusData.loadFromDataset(corpusFileName)
     val scheduleName = if (useSelfTuningLam) "SelfTuningLam" else "ModifiedLam"
 
-    // A futások ~10%-a az eredeti kiosztást finomhangolja, ~90%-a Hot Shuffle-ből indul
+    // A futások ~10%-a az eredeti kiosztást finomhangolja (max 32), a többi Hot Shuffle-ből indul
     val originalRunsCount = minOf(32, maxOf(1, runs / 10))
     val shuffledRunsCount = runs - originalRunsCount
 
     println("=== CHIPS-N-SALSA ($scheduleName SA + UNDOABLE 2D MUTÁCIÓK) INDÍTÁSA ===")
-    println("-> Párhuzamos futások: $runs (Eredeti: $originalRunsCount, Shuffled: $shuffledRunsCount) | Lépés/futás: $evaluationsPerRun")
+    println("-> Párhuzamos futások: $runs (Original: $originalRunsCount, Shuffled: $shuffledRunsCount) | Lépés/futás: $evaluationsPerRun | 2-opt Top N: $polishTopN")
     println("-> Korpusz: $corpusFileName | Hüvelykujj engedélyezve: Bal=$leftThumbEnabled, Jobb=$rightThumbEnabled")
     val startTime = System.currentTimeMillis()
     val completedRuns = AtomicInteger(0)
@@ -320,6 +321,7 @@ fun parallelChipsNSalsaImprovement(
     // 1. Párhuzamos Chips-n-Salsa SA szálak futtatása
     val deferredResults = (1..runs).map { i ->
         val isShuffled = i > originalRunsCount
+        val modeTag = if (isShuffled) "Shuffled" else "Original"
         async(Dispatchers.Default) {
             val problem = KeyboardOptimizationProblem(corpusData)
             val initializer = KeyboardLayoutInitializer(
@@ -343,10 +345,14 @@ fun parallelChipsNSalsaImprovement(
 
             val done = completedRuns.incrementAndGet()
             val elapsedSec = (System.currentTimeMillis() - startTime) / 1000.0
-            val modeTag = if (isShuffled) "Shuffled" else "Original"
             println("[$done / $runs kész | ${String.format("%.1f", elapsedSec)} mp] --- $i. CNS ($modeTag) végzett. Effort: ${String.format("%.4f", bestEffort)} ---")
 
-            Triple(bestEffort, bestLayoutInRun, isShuffled)
+            RunCandidate(
+                runIndex = i,
+                effort = bestEffort,
+                layout = bestLayoutInRun,
+                mode = modeTag
+            )
         }
     }
 
@@ -354,28 +360,34 @@ fun parallelChipsNSalsaImprovement(
     val saTimeSeconds = (System.currentTimeMillis() - startTime) / 1000.0
     println("\nMind a $runs Chips-n-Salsa futás befejeződött (${String.format("%.1f", saTimeSeconds)} mp).")
 
-    // 2. Kiválasztjuk a legjobb 32 egyedi jelöltet a 2-opt végső csiszoláshoz
+    // 2. Kiválasztjuk a legjobb polishTopN egyedi jelöltet a 2-opt végső csiszoláshoz
     val topCandidatesForPolish = rawResults
-        .sortedBy { it.first }
-        .distinctBy { cnsLayoutSignature(it.second) }
-        .take(32)
+        .sortedBy { it.effort }
+        .distinctBy { cnsLayoutSignature(it.layout) }
+        .take(polishTopN.coerceAtLeast(0))
 
     println("\n=== TOP ${topCandidatesForPolish.size} CHIPS-N-SALSA JELÖLT 2-OPT VÉGSŐ CSISZOLÁSA ===")
     val polishStartTime = System.currentTimeMillis()
 
-    val polishedResults = topCandidatesForPolish.mapIndexed { idx, (saEffort, candidateLayout, isShuffled) ->
+    val polishedResults = topCandidatesForPolish.mapIndexed { idx, candidate ->
         async(Dispatchers.Default) {
             val polishedLayout = polishLayout2Opt(
-                initialLayout = candidateLayout,
+                initialLayout = candidate.layout,
                 corpusData = corpusData,
                 leftThumbEnabled = leftThumbEnabled,
                 rightThumbEnabled = rightThumbEnabled
             )
             val polishedAnalysis = completeLayoutAnalysis(polishedLayout, corpusData, verbose = false)
-            val diff = polishedAnalysis.totalEffort - saEffort
+            val diff = polishedAnalysis.totalEffort - candidate.effort
 
-            println("--- Jelölt #${idx + 1} csiszolva: ${String.format("%.4f", saEffort)} -> ${String.format("%.4f", polishedAnalysis.totalEffort)} (Delta: ${String.format("%.4f", diff)}) ---")
-            Triple(polishedAnalysis.totalEffort, polishedLayout, isShuffled)
+            println("--- Jelölt #${idx + 1} (Szál #${candidate.runIndex}, ${candidate.mode}) csiszolva: ${String.format("%.4f", candidate.effort)} -> ${String.format("%.4f", polishedAnalysis.totalEffort)} (Delta: ${String.format("%.4f", diff)}) ---")
+            PolishedCandidate(
+                runIndex = candidate.runIndex,
+                beforeEffort = candidate.effort,
+                afterEffort = polishedAnalysis.totalEffort,
+                layout = polishedLayout,
+                mode = candidate.mode
+            )
         }
     }.awaitAll()
 
@@ -384,10 +396,19 @@ fun parallelChipsNSalsaImprovement(
     println("2-opt csiszolás kész (${String.format("%.1f", polishTimeSeconds)} mp). Teljes futásidő: ${String.format("%.1f", totalTimeSeconds)} mp")
 
     // 3. Top 3 kiválasztása
-    val top3 = polishedResults
-        .sortedBy { it.first }
-        .distinctBy { cnsLayoutSignature(it.second) }
-        .take(3)
+    val top3: List<Triple<Double, CombinedLayoutData, String>> = if (polishedResults.isNotEmpty()) {
+        polishedResults
+            .sortedBy { it.afterEffort }
+            .distinctBy { cnsLayoutSignature(it.layout) }
+            .take(3)
+            .map { Triple(it.afterEffort, it.layout, it.mode) }
+    } else {
+        rawResults
+            .sortedBy { it.effort }
+            .distinctBy { cnsLayoutSignature(it.layout) }
+            .take(3)
+            .map { Triple(it.effort, it.layout, it.mode) }
+    }
 
     // 4. Mentés a generatedkeyboards és ImprovementLogs mappákba
     val formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd-HH-mm-ss")
@@ -401,6 +422,7 @@ fun parallelChipsNSalsaImprovement(
     val logDir = File("ImprovementLogs")
     logDir.mkdirs()
     val logFile = File(logDir, "$runDirName.txt")
+    val csvFile = File(logDir, "$runDirName.csv")
 
     writeDetailedLog(
         logFile = logFile,
@@ -409,14 +431,18 @@ fun parallelChipsNSalsaImprovement(
         timestamp = timestamp,
         corpusName = corpusData.datasetName,
         algorithmDetails = listOf(
-            "Összes szál: $runs (Eredeti: $originalRunsCount, Shuffled: $shuffledRunsCount) | Lépés/szál: $evaluationsPerRun",
-            "Hűtési ütemezés: $scheduleName | Hüvelykujj: Bal=$leftThumbEnabled, Jobb=$rightThumbEnabled"
+            "Összes szál: $runs (Original: $originalRunsCount, Shuffled: $shuffledRunsCount) | Lépés/szál: $evaluationsPerRun",
+            "Hűtési ütemezés: $scheduleName | 2-opt csiszolási limit (polishTopN): $polishTopN (Ténylegesen csiszolva: ${polishedResults.size}) | Hüvelykujj: Bal=$leftThumbEnabled, Jobb=$rightThumbEnabled"
         ),
         totalTimeSeconds = totalTimeSeconds,
-        topResults = top3.map { (effort, _, isShuffled) ->
-            val originStr = if (isShuffled) "Chips-n-Salsa $scheduleName (Shuffled)" else "Chips-n-Salsa $scheduleName (Eredeti)"
+        topResults = top3.map { (effort, _, mode) ->
+            val originStr = "Chips-n-Salsa $scheduleName ($mode)"
             effort to originStr
-        }
+        },
+        rawRunResults = rawResults.map { RawRunLogEntry(it.runIndex, it.effort, it.mode) },
+        polishedResults = polishedResults.map { PolishedRunLogEntry(it.runIndex, it.beforeEffort, it.afterEffort, it.mode) },
+        csvFile = csvFile,
+        algorithmTag = "CNS_$scheduleName"
     )
 
     for ((index, triple) in top3.withIndex()) {

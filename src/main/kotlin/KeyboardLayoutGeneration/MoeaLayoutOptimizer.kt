@@ -344,7 +344,8 @@ fun parallelMoeaImprovement(
     corpusFileName: String = "huszonkettoHuszonnegyeswikipediahuszonegy.txt",
     leftThumbEnabled: Boolean = false,  // Jelenleg kikapcsolva: thumb_left nem kap betűt
     rightThumbEnabled: Boolean = false, // Jelenleg kikapcsolva: thumb_right nem kap betűt
-    folder: String = "keyboards"
+    folder: String = "keyboards",
+    polishTopN: Int = 32
 ) = runBlocking {
     val cleanKeyboardName = keyboardname.removeSuffix(".yaml")
     val originalYamlFile = LayoutParser.resolveLayoutFile(cleanKeyboardName, folder) ?: File("$folder/${cleanKeyboardName}.yaml")
@@ -359,7 +360,7 @@ fun parallelMoeaImprovement(
     val positions = collectOptimizablePositions(initialLayout, leftThumbEnabled, rightThumbEnabled)
 
     println("=== MOEA FRAMEWORK (GA + PMX + TOPOLÓGIA-MUTÁCIÓK) INDÍTÁSA ===")
-    println("-> Szigetek (párhuzamos GA futások): $islands | Kiértékelés/sziget: $evaluationsPerIsland | Populáció: $populationSize")
+    println("-> Szigetek (párhuzamos GA futások): $islands | Kiértékelés/sziget: $evaluationsPerIsland | Populáció: $populationSize | 2-opt Top N: $polishTopN")
     println("-> Optimalizált pozíciók száma: ${positions.size} (Bal thumb: $leftThumbEnabled, Jobb thumb: $rightThumbEnabled)")
     val startTime = System.currentTimeMillis()
     val completedIslands = AtomicInteger(0)
@@ -393,9 +394,14 @@ fun parallelMoeaImprovement(
 
             val done = completedIslands.incrementAndGet()
             val elapsedSec = (System.currentTimeMillis() - startTime) / 1000.0
-            println("[$done / $islands kész | ${String.format("%.1f", elapsedSec)} mp] --- $i. GA sziget végzett. Effort: ${String.format("%.4f", bestEffort)} ---")
+            println("[$done / $islands kész | ${String.format("%.1f", elapsedSec)} mp] --- $i. GA sziget (Shuffled) végzett. Effort: ${String.format("%.4f", bestEffort)} ---")
 
-            Pair(bestEffort, bestLayoutInRun)
+            RunCandidate(
+                runIndex = i,
+                effort = bestEffort,
+                layout = bestLayoutInRun,
+                mode = "Shuffled"
+            )
         }
     }
 
@@ -403,28 +409,34 @@ fun parallelMoeaImprovement(
     val gaTimeSeconds = (System.currentTimeMillis() - startTime) / 1000.0
     println("\nMind a $islands GA sziget befejeződött (${String.format("%.1f", gaTimeSeconds)} mp).")
 
-    // 2. Kiválasztjuk a legjobb 32 egyedi jelöltet a 2-opt végső csiszoláshoz
+    // 2. Kiválasztjuk a legjobb polishTopN egyedi jelöltet a 2-opt végső csiszoláshoz
     val topCandidatesForPolish = rawResults
-        .sortedBy { it.first }
-        .distinctBy { moeaLayoutSignature(it.second) }
-        .take(32)
+        .sortedBy { it.effort }
+        .distinctBy { moeaLayoutSignature(it.layout) }
+        .take(polishTopN.coerceAtLeast(0))
 
     println("\n=== TOP ${topCandidatesForPolish.size} GA JELÖLT 2-OPT VÉGSŐ CSISZOLÁSA PÁRHUZAMOSAN ===")
     val polishStartTime = System.currentTimeMillis()
 
-    val polishedResults = topCandidatesForPolish.mapIndexed { idx, (gaEffort, candidateLayout) ->
+    val polishedResults = topCandidatesForPolish.mapIndexed { idx, candidate ->
         async(Dispatchers.Default) {
             val polishedLayout = polishLayout2Opt(
-                initialLayout = candidateLayout,
+                initialLayout = candidate.layout,
                 corpusData = corpusData,
                 leftThumbEnabled = leftThumbEnabled,
                 rightThumbEnabled = rightThumbEnabled
             )
             val polishedAnalysis = completeLayoutAnalysis(polishedLayout, corpusData, verbose = false)
-            val diff = polishedAnalysis.totalEffort - gaEffort
+            val diff = polishedAnalysis.totalEffort - candidate.effort
 
-            println("--- Jelölt #${idx + 1} csiszolva: ${String.format("%.4f", gaEffort)} -> ${String.format("%.4f", polishedAnalysis.totalEffort)} (Delta: ${String.format("%.4f", diff)}) ---")
-            Pair(polishedAnalysis.totalEffort, polishedLayout)
+            println("--- Jelölt #${idx + 1} (Sziget #${candidate.runIndex}, ${candidate.mode}) csiszolva: ${String.format("%.4f", candidate.effort)} -> ${String.format("%.4f", polishedAnalysis.totalEffort)} (Delta: ${String.format("%.4f", diff)}) ---")
+            PolishedCandidate(
+                runIndex = candidate.runIndex,
+                beforeEffort = candidate.effort,
+                afterEffort = polishedAnalysis.totalEffort,
+                layout = polishedLayout,
+                mode = candidate.mode
+            )
         }
     }.awaitAll()
 
@@ -433,10 +445,19 @@ fun parallelMoeaImprovement(
     println("2-opt csiszolás kész (${String.format("%.1f", polishTimeSeconds)} mp). Teljes futásidő: ${String.format("%.1f", totalTimeSeconds)} mp")
 
     // 3. Top 3 kiválasztása
-    val top3 = polishedResults
-        .sortedBy { it.first }
-        .distinctBy { moeaLayoutSignature(it.second) }
-        .take(3)
+    val top3: List<Pair<Double, CombinedLayoutData>> = if (polishedResults.isNotEmpty()) {
+        polishedResults
+            .sortedBy { it.afterEffort }
+            .distinctBy { moeaLayoutSignature(it.layout) }
+            .take(3)
+            .map { Pair(it.afterEffort, it.layout) }
+    } else {
+        rawResults
+            .sortedBy { it.effort }
+            .distinctBy { moeaLayoutSignature(it.layout) }
+            .take(3)
+            .map { Pair(it.effort, it.layout) }
+    }
 
     // 4. Mentés a generatedkeyboards és ImprovementLogs mappákba
     val formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd-HH-mm-ss")
@@ -450,6 +471,7 @@ fun parallelMoeaImprovement(
     val logDir = File("ImprovementLogs")
     logDir.mkdirs()
     val logFile = File(logDir, "$runDirName.txt")
+    val csvFile = File(logDir, "$runDirName.csv")
 
     writeDetailedLog(
         logFile = logFile,
@@ -458,13 +480,17 @@ fun parallelMoeaImprovement(
         timestamp = timestamp,
         corpusName = corpusData.datasetName,
         algorithmDetails = listOf(
-            "Szigetek száma: $islands | Kiértékelés/sziget: $evaluationsPerIsland | Populáció: $populationSize",
-            "Hüvelykujj engedélyezve: Bal=$leftThumbEnabled, Jobb=$rightThumbEnabled"
+            "Szigetek száma: $islands (Shuffled: $islands) | Kiértékelés/sziget: $evaluationsPerIsland | Populáció: $populationSize",
+            "2-opt csiszolási limit (polishTopN): $polishTopN (Ténylegesen csiszolva: ${polishedResults.size}) | Hüvelykujj engedélyezve: Bal=$leftThumbEnabled, Jobb=$rightThumbEnabled"
         ),
         totalTimeSeconds = totalTimeSeconds,
         topResults = top3.map { (effort, _) ->
-            effort to "MOEA Framework GA (PMX + Topológia-mutációk + 2-opt)"
-        }
+            effort to "MOEA Framework GA (Shuffled, PMX + Topológia-mutációk + 2-opt)"
+        },
+        rawRunResults = rawResults.map { RawRunLogEntry(it.runIndex, it.effort, it.mode) },
+        polishedResults = polishedResults.map { PolishedRunLogEntry(it.runIndex, it.beforeEffort, it.afterEffort, it.mode) },
+        csvFile = csvFile,
+        algorithmTag = "MOEA_GA"
     )
 
     for ((index, pair) in top3.withIndex()) {

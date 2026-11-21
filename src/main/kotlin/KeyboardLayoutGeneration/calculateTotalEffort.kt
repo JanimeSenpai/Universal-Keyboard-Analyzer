@@ -5,9 +5,10 @@ import keyboard_analysis.CorpusData
 import keyboard_analysis.LayoutAnalysisResult
 import keyboard_analysis.completeLayoutAnalysis
 import java.io.File
-import kotlin.math.abs
+import java.util.Locale
 import kotlin.math.exp
 import kotlin.math.pow
+import kotlin.math.sqrt
 import kotlin.random.Random
 
 // --- 1. BÜNTETŐ SÚLYOK (Minimalizálandó értékek -> növelik a Total Effortot) ---
@@ -87,17 +88,17 @@ fun calculateTotalEffort(result: LayoutAnalysisResult): Double {
     //val handImbalance = kotlin.math.abs(result.handBalanceLeft - result.handBalanceRight)
 
     val lessUsedHandPercentage = minOf(result.handBalanceLeft, result.handBalanceRight)
-    val k = 50.0 - lessUsedHandPercentage
+    val handDifference = 50.0 - lessUsedHandPercentage
 
     val handImbalance = when {
-        k <= 5.0 -> {
-            0.04 * (5.0 - k) * (5.0 - k)
+        handDifference <= 5.0 -> {
+            0.04 * (5.0 - handDifference) * (5.0 - handDifference)
         }
-        k <= 7.0 -> {
-            0.5 * (k - 5.0) * (k - 5.0)
+        handDifference <= 7.0 -> {
+            0.5 * (handDifference - 5.0) * (handDifference - 5.0)
         }
         else -> {
-            val diff = k - 7.0
+            val diff = handDifference - 7.0
             // C1 folytonos harmadfokú folytatás: a k=7 pontban az érték (2.0)
             // és a meredekség (2.0) is tökéletesen illeszkedik a fenti másodfokú ághoz.
             diff * diff * diff + 2.0 * diff + 2.0
@@ -138,10 +139,74 @@ fun calculateTotalEffort(result: LayoutAnalysisResult): Double {
     return penalties - rewards
 }
 
+data class RawRunLogEntry(
+    val runIndex: Int,
+    val effort: Double,
+    val mode: String
+)
+
+data class PolishedRunLogEntry(
+    val runIndex: Int,
+    val beforeEffort: Double,
+    val afterEffort: Double,
+    val mode: String
+) {
+    val delta: Double get() = afterEffort - beforeEffort
+}
+
+internal data class RunCandidate(
+    val runIndex: Int,
+    val effort: Double,
+    val layout: CombinedLayoutData,
+    val mode: String
+)
+
+internal data class PolishedCandidate(
+    val runIndex: Int,
+    val beforeEffort: Double,
+    val afterEffort: Double,
+    val layout: CombinedLayoutData,
+    val mode: String
+) {
+    val delta: Double get() = afterEffort - beforeEffort
+}
+
+private fun calculatePercentile(sortedValues: List<Double>, percentile: Double): Double {
+    if (sortedValues.isEmpty()) return Double.NaN
+    if (sortedValues.size == 1) return sortedValues[0]
+    val rank = (percentile / 100.0) * (sortedValues.size - 1)
+    val lower = rank.toInt()
+    val upper = minOf(lower + 1, sortedValues.size - 1)
+    val fraction = rank - lower
+    return sortedValues[lower] + fraction * (sortedValues[upper] - sortedValues[lower])
+}
+
+private fun formatEffortStats(label: String, values: List<Double>): List<String> {
+    if (values.isEmpty()) return emptyList()
+    val sorted = values.sorted()
+    val mean = values.average()
+    val variance = values.sumOf { (it - mean) * (it - mean) } / values.size
+    val stdDev = sqrt(variance)
+    val p10 = calculatePercentile(sorted, 10.0)
+    val p25 = calculatePercentile(sorted, 25.0)
+    val median = calculatePercentile(sorted, 50.0)
+    val p75 = calculatePercentile(sorted, 75.0)
+    val p90 = calculatePercentile(sorted, 90.0)
+
+    fun fmt(v: Double) = String.format(Locale.US, "%.4f", v)
+
+    return listOf(
+        "$label (n=${values.size}):",
+        " - Min: ${fmt(sorted.first())} | Max: ${fmt(sorted.last())} | Átlag: ${fmt(mean)} | Szórás: ${fmt(stdDev)}",
+        " - P10: ${fmt(p10)} | P25: ${fmt(p25)} | Medián (P50): ${fmt(median)} | P75: ${fmt(p75)} | P90: ${fmt(p90)}"
+    )
+}
+
 /**
  * Egységes részletes log író függvény minden optimalizálóhoz (Saját SA, Chips-n-Salsa, MOEA).
- * Automatikusan kiírja a futási paramétereket, a korpusz nevét, az összes célfüggvény-súlyt (weights)
- * és a Top 3 helyezett adatait.
+ * Automatikusan kiírja a futási paramétereket, a korpusz nevét, az összes célfüggvény-súlyt (weights),
+ * a Top 3 helyezett adatait, a statisztikai összefoglalót, a 2-opt csiszolt jelöltek előtte->utána értékeit,
+ * az összes nyers futás effort értékét, valamint opcionálisan egy tiszta CSV fájlt az utólagos elemzéshez.
  */
 fun writeDetailedLog(
     logFile: File,
@@ -151,8 +216,18 @@ fun writeDetailedLog(
     corpusName: String,
     algorithmDetails: List<String>,
     totalTimeSeconds: Double,
-    topResults: List<Pair<Double, String>>
+    topResults: List<Pair<Double, String>>,
+    rawRunResults: List<RawRunLogEntry> = emptyList(),
+    polishedResults: List<PolishedRunLogEntry> = emptyList(),
+    csvFile: File? = null,
+    algorithmTag: String = ""
 ) {
+    fun fmt(v: Double) = String.format(Locale.US, "%.4f", v)
+    fun fmtDelta(v: Double) = String.format(Locale.US, "%+.4f", v)
+
+    val sortedRaw = rawRunResults.sortedBy { it.effort }
+    val sortedPolished = polishedResults.sortedBy { it.afterEffort }
+
     logFile.bufferedWriter().use { writer ->
         writer.write("=== $logTitle ===")
         writer.newLine()
@@ -166,7 +241,7 @@ fun writeDetailedLog(
             writer.write(detail)
             writer.newLine()
         }
-        writer.write("Teljes futásidő: ${String.format("%.1f", totalTimeSeconds)} mp")
+        writer.write("Teljes futásidő: ${String.format(Locale.US, "%.1f", totalTimeSeconds)} mp")
         writer.newLine()
         writer.newLine()
 
@@ -218,14 +293,100 @@ fun writeDetailedLog(
             val (effort, originStr) = pair
             writer.write("$rank. Helyezett:")
             writer.newLine()
-            writer.write(" - Effort pontszám: ${String.format("%.4f", effort)}")
+            writer.write(" - Effort pontszám: ${fmt(effort)}")
             writer.newLine()
             writer.write(" - Származás: $originStr")
             writer.newLine()
             writer.newLine()
         }
+
+        if (sortedRaw.isNotEmpty() || sortedPolished.isNotEmpty()) {
+            writer.write("--- STATISZTIKAI ÖSSZEFOGLALÓ ---")
+            writer.newLine()
+
+            if (sortedRaw.isNotEmpty()) {
+                for (line in formatEffortStats("Összes nyers futás (csiszolás előtt)", sortedRaw.map { it.effort })) {
+                    writer.write(line)
+                    writer.newLine()
+                }
+
+                val modes = sortedRaw.map { it.mode }.distinct()
+                if (modes.size > 1) {
+                    for (mode in modes) {
+                        val modeEfforts = sortedRaw.filter { it.mode == mode }.map { it.effort }
+                        for (line in formatEffortStats("Nyers futások [$mode]", modeEfforts)) {
+                            writer.write(line)
+                            writer.newLine()
+                        }
+                    }
+                }
+                writer.newLine()
+            }
+
+            if (sortedPolished.isNotEmpty()) {
+                for (line in formatEffortStats("2-opt csiszolt jelöltek (utána)", sortedPolished.map { it.afterEffort })) {
+                    writer.write(line)
+                    writer.newLine()
+                }
+                val deltas = sortedPolished.map { it.delta }
+                val avgDelta = deltas.average()
+                val bestDelta = deltas.min() // Legnagyobb javulás (legnegatívabb delta)
+                val worstDelta = deltas.max()
+                val improvedCount = deltas.count { it < -1e-9 }
+                writer.write(
+                    " - 2-opt javulás (delta): Átlag: ${fmtDelta(avgDelta)} | Legnagyobb javulás: ${fmtDelta(bestDelta)} | Legkisebb változás: ${fmtDelta(worstDelta)} | Javult: $improvedCount/${sortedPolished.size}"
+                )
+                writer.newLine()
+                writer.newLine()
+            }
+        }
+
+        if (sortedPolished.isNotEmpty()) {
+            writer.write("--- 2-OPT CSISZOLT JELÖLTEK (${sortedPolished.size} db, csiszolt effort szerint rendezve) ---")
+            writer.newLine()
+            for ((idx, entry) in sortedPolished.withIndex()) {
+                writer.write(
+                    "#${idx + 1} (Szál #${entry.runIndex}) | Előtte: ${fmt(entry.beforeEffort)} -> Utána: ${fmt(entry.afterEffort)} (Delta: ${fmtDelta(entry.delta)}) | Mód: ${entry.mode}"
+                )
+                writer.newLine()
+            }
+            writer.newLine()
+        }
+
+        if (sortedRaw.isNotEmpty()) {
+            writer.write("--- ÖSSZES NYERS FUTÁS CSISZOLÁS ELŐTT (${sortedRaw.size} db, effort szerint rendezve) ---")
+            writer.newLine()
+            for ((idx, entry) in sortedRaw.withIndex()) {
+                writer.write(
+                    "#${idx + 1} (Szál #${entry.runIndex}) | Effort: ${fmt(entry.effort)} | Mód: ${entry.mode}"
+                )
+                writer.newLine()
+            }
+            writer.newLine()
+        }
     }
     println("Log fájl elmentve: ${logFile.absolutePath}")
+
+    if (csvFile != null && (sortedRaw.isNotEmpty() || sortedPolished.isNotEmpty())) {
+        val algoName = algorithmTag.ifBlank { logTitle }.replace(",", " ")
+        csvFile.bufferedWriter().use { writer ->
+            writer.write("algorithm,stage,rank,run_index,mode,effort_before,effort_after,delta")
+            writer.newLine()
+            for ((idx, entry) in sortedRaw.withIndex()) {
+                writer.write(
+                    "$algoName,raw,${idx + 1},${entry.runIndex},${entry.mode},${fmt(entry.effort)},,"
+                )
+                writer.newLine()
+            }
+            for ((idx, entry) in sortedPolished.withIndex()) {
+                writer.write(
+                    "$algoName,polished,${idx + 1},${entry.runIndex},${entry.mode},${fmt(entry.beforeEffort)},${fmt(entry.afterEffort)},${fmt(entry.delta)}"
+                )
+                writer.newLine()
+            }
+        }
+        println("CSV fájl elmentve: ${csvFile.absolutePath}")
+    }
 }
 
 
@@ -239,7 +400,7 @@ fun writeDetailedLog(
 fun improveLayout(
     initialLayout: CombinedLayoutData,
     corpusData: CorpusData,
-    iterations: Int = 42000,
+    iterations: Int = 50000,
     initialTemp: Double = 10.0,
     finalTemp: Double = 0.005,
     applyHotShuffle: Boolean = true,

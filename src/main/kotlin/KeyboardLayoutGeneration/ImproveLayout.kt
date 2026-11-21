@@ -13,22 +13,44 @@ import layoutcharefforts
 import java.io.File
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
+import java.util.concurrent.atomic.AtomicInteger
 
 
 var ltsn = Pair("ltsnergomini","huszonkettoHuszonnegyeswikipediahuszonegy.txt")
 var qwertyenglish= Pair("qwertycolstag_en","monke.txt")
 
 fun main(){
+    val benchmarkRuns = 512
+    val polishTopN = 128 // Futtatás előtt átírható pl. 128-ra
+
+    parallelImprovement(
+        runs = benchmarkRuns,
+        keyboardname = ltsn.first,
+        corpusFileName = ltsn.second,
+        iterations = 50000,
+        polishTopN = polishTopN
+    )
 
     parallelChipsNSalsaImprovement(
-        runs = 128,
+        runs = benchmarkRuns,
         evaluationsPerRun = 50000,
         useSelfTuningLam = true,
         keyboardname = ltsn.first,
         corpusFileName = ltsn.second,
+        leftThumbEnabled = false,
+        rightThumbEnabled = false,
+        polishTopN = polishTopN
     )
-    //parallelMoeaImprovement(keyboardname = "ltsnergomini")
-    //parallelImprovement(128, "ltsnergorowstagger")
+
+    parallelMoeaImprovement(
+        islands = benchmarkRuns,
+        evaluationsPerIsland = 100000,
+        keyboardname = ltsn.first,
+        corpusFileName = ltsn.second,
+        leftThumbEnabled = false,
+        rightThumbEnabled = false,
+        polishTopN = polishTopN
+    )
 }
 
 
@@ -47,8 +69,9 @@ fun parallelImprovement(
     runs: Int = 25,
     keyboardname: String = "ltsnergomini",
     corpusFileName: String = "huszonkettoHuszonnegyeswikipediahuszonegy.txt",
-    iterations: Int = 42000,
-    folder: String = "keyboards"
+    iterations: Int = 50000,
+    folder: String = "keyboards",
+    polishTopN: Int = 32
 ) = runBlocking {
     val cleanKeyboardName = keyboardname.removeSuffix(".yaml")
     val originalYamlFile = LayoutParser.resolveLayoutFile(cleanKeyboardName, folder) ?: File("$folder/${cleanKeyboardName}.yaml")
@@ -61,19 +84,21 @@ fun parallelImprovement(
 
     val corpusData = CorpusData.loadFromDataset(corpusFileName)
 
-    // Kiszámoljuk, hány szál induljon az eredeti layoutból (N/10, de minimum 1)
-    val numOriginalRuns = maxOf(1, runs / 10)
+    // Kiszámoljuk, hány szál induljon az eredeti layoutból (N/10, minimum 1, maximum 32 — a CNS-sel azonos arány)
+    val numOriginalRuns = minOf(32, maxOf(1, runs / 10))
+    val shuffledRunsCount = runs - numOriginalRuns
 
     println("=== SA OPTIMALIZÁLÁS INDÍTÁSA ($runs FUTÁS PÁRHUZAMOSAN, $iterations ITERÁCIÓ/SZÁL) ===")
-    println("-> $numOriginalRuns futás az eredeti layoutot javítja, ${runs - numOriginalRuns} futás forró keveréssel indul.")
+    println("-> $numOriginalRuns futás az eredeti layoutot javítja, $shuffledRunsCount futás forró keveréssel indul. | 2-opt Top N: $polishTopN")
     val startTime = System.currentTimeMillis()
+    val completedRuns = AtomicInteger(0)
 
     // Párhuzamos indítás a CPU szálain (Dispatchers.Default optimalizálja a magok használatát)
     val deferredResults = (1..runs).map { i ->
         async(Dispatchers.Default) {
             // Az első numOriginalRuns számú szál NEM kér keverést
             val useHotShuffle = i > numOriginalRuns
-            // A deepCopy() miatt minden szál a saját layout példányával dolgozik
+            val modeTag = if (useHotShuffle) "Shuffled" else "Original"
 
             val bestLayoutInRun = improveLayout(
                 initialLayout = initialLayout,
@@ -84,11 +109,16 @@ fun parallelImprovement(
 
             val finalAnalysis = completeLayoutAnalysis(bestLayoutInRun, corpusData, verbose = false)
 
-            val modeStr = if (useHotShuffle) "Kevert" else "Eredeti"
-            println("--- $i. szál végzett ($modeStr). SA Effort: ${String.format("%.4f", finalAnalysis.totalEffort)} ---")
+            val done = completedRuns.incrementAndGet()
+            val elapsedSec = (System.currentTimeMillis() - startTime) / 1000.0
+            println("[$done / $runs kész | ${String.format("%.1f", elapsedSec)} mp] --- $i. SA ($modeTag) végzett. Effort: ${String.format("%.4f", finalAnalysis.totalEffort)} ---")
 
-            // VÁLTOZÁS: Triple-t adunk vissza, hogy megőrizzük a Hot Shuffle információt
-            Triple(finalAnalysis.totalEffort, bestLayoutInRun, useHotShuffle)
+            RunCandidate(
+                runIndex = i,
+                effort = finalAnalysis.totalEffort,
+                layout = bestLayoutInRun,
+                mode = modeTag
+            )
         }
     }
 
@@ -96,28 +126,31 @@ fun parallelImprovement(
     val saTimeSeconds = (System.currentTimeMillis() - startTime) / 1000.0
     println("\nMind a $runs SA futás befejeződött (${String.format("%.1f", saTimeSeconds)} mp).")
 
-    // 2. Rendezzük az SA eredményeket, kiszűrjük a duplikációkat, és kivesszük a legjobb 32-t
+    // 2. Rendezzük az SA eredményeket, kiszűrjük a duplikációkat, és kivesszük a legjobb polishTopN-t
     val topCandidatesForPolish = rawResults
-        .sortedBy { it.first }
-        .distinctBy { layoutSignature(it.second) }
-        .take(32)
+        .sortedBy { it.effort }
+        .distinctBy { layoutSignature(it.layout) }
+        .take(polishTopN.coerceAtLeast(0))
 
     println("\n=== TOP ${topCandidatesForPolish.size} JELÖLT 2-OPT VÉGSŐ CSISZOLÁSA PÁRHUZAMOSAN ===")
     val polishStartTime = System.currentTimeMillis()
 
-    // 3. Párhuzamos 2-opt csiszolás a legjobb jelölteken (egyetlen 32 szálas CPU-hullám)
+    // 3. Párhuzamos 2-opt csiszolás a legjobb jelölteken
     val polishedResults = topCandidatesForPolish.mapIndexed { idx, candidate ->
         async(Dispatchers.Default) {
-            val (saEffort, candidateLayout, usedHotShuffle) = candidate
-
-            val polishedLayout = polishLayout2Opt(candidateLayout, corpusData)
+            val polishedLayout = polishLayout2Opt(candidate.layout, corpusData)
             val polishedAnalysis = completeLayoutAnalysis(polishedLayout, corpusData, verbose = false)
-            val diff = polishedAnalysis.totalEffort - saEffort
+            val diff = polishedAnalysis.totalEffort - candidate.effort
 
-            println("--- Jelölt #${idx + 1} csiszolva: ${String.format("%.4f", saEffort)} -> ${String.format("%.4f", polishedAnalysis.totalEffort)} (Delta: ${String.format("%.4f", diff)}) ---")
+            println("--- Jelölt #${idx + 1} (Szál #${candidate.runIndex}, ${candidate.mode}) csiszolva: ${String.format("%.4f", candidate.effort)} -> ${String.format("%.4f", polishedAnalysis.totalEffort)} (Delta: ${String.format("%.4f", diff)}) ---")
 
-            // VÁLTOZÁS: A csiszolás után is megtartjuk a módszer flag-jét
-            Triple(polishedAnalysis.totalEffort, polishedLayout, usedHotShuffle)
+            PolishedCandidate(
+                runIndex = candidate.runIndex,
+                beforeEffort = candidate.effort,
+                afterEffort = polishedAnalysis.totalEffort,
+                layout = polishedLayout,
+                mode = candidate.mode
+            )
         }
     }.awaitAll()
 
@@ -126,10 +159,19 @@ fun parallelImprovement(
     println("2-opt csiszolás kész (${String.format("%.1f", polishTimeSeconds)} mp). Teljes futásidő: ${String.format("%.1f", totalTimeSeconds)} mp")
 
     // 4. Újrarendezés a csiszolt pontszámok alapján, ismételt duplikációszűrés, majd Top 3
-    val top3 = polishedResults
-        .sortedBy { it.first }
-        .distinctBy { layoutSignature(it.second) }
-        .take(3)
+    val top3: List<Triple<Double, CombinedLayoutData, String>> = if (polishedResults.isNotEmpty()) {
+        polishedResults
+            .sortedBy { it.afterEffort }
+            .distinctBy { layoutSignature(it.layout) }
+            .take(3)
+            .map { Triple(it.afterEffort, it.layout, it.mode) }
+    } else {
+        rawResults
+            .sortedBy { it.effort }
+            .distinctBy { layoutSignature(it.layout) }
+            .take(3)
+            .map { Triple(it.effort, it.layout, it.mode) }
+    }
 
     println("\n==================================================")
     println("=== A LEGJOBB 3 KIOSZTÁS KIÉRTÉKELÉSE ÉS MENTÉSE ===")
@@ -146,10 +188,11 @@ fun parallelImprovement(
     outputDir.mkdirs()
     println("Eredmények mentése ide: ${outputDir.absolutePath}")
 
-    // --- ÚJ RÉSZ: ImprovementLogs mappa és log fájl elkészítése ---
+    // --- ImprovementLogs mappa és log + CSV fájl elkészítése ---
     val logDir = File("ImprovementLogs")
     logDir.mkdirs()
     val logFile = File(logDir, "$runDirName.txt")
+    val csvFile = File(logDir, "$runDirName.csv")
 
     writeDetailedLog(
         logFile = logFile,
@@ -158,14 +201,18 @@ fun parallelImprovement(
         timestamp = timestamp,
         corpusName = corpusData.datasetName,
         algorithmDetails = listOf(
-            "Futtatott SA iterációk szálanként: Párhuzamos futás",
-            "Összes szál: $runs (Ebből eredeti: $numOriginalRuns, Hot Shuffle: ${runs - numOriginalRuns})"
+            "Összes szál: $runs (Original: $numOriginalRuns, Shuffled: $shuffledRunsCount) | Iteráció/szál: $iterations",
+            "2-opt csiszolási limit (polishTopN): $polishTopN (Ténylegesen csiszolva: ${polishedResults.size}) | Hüvelykujj: Bal=false, Jobb=false"
         ),
         totalTimeSeconds = totalTimeSeconds,
-        topResults = top3.map { (effort, _, usedHotShuffle) ->
-            val methodStr = if (usedHotShuffle) "Hot Shuffle (Kevert kezdőállapot)" else "Eredeti Layout finomhangolása"
+        topResults = top3.map { (effort, _, mode) ->
+            val methodStr = if (mode == "Shuffled") "Hot Shuffle (Shuffled)" else "Eredeti Layout finomhangolása (Original)"
             effort to methodStr
-        }
+        },
+        rawRunResults = rawResults.map { RawRunLogEntry(it.runIndex, it.effort, it.mode) },
+        polishedResults = polishedResults.map { PolishedRunLogEntry(it.runIndex, it.beforeEffort, it.afterEffort, it.mode) },
+        csvFile = csvFile,
+        algorithmTag = "SA"
     )
     // ---------------------------------------------------------------
 
