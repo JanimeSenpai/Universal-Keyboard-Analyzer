@@ -6,6 +6,7 @@ import EffortModel.Finger
 import EffortModel.Hand
 import EffortModel.KeyboardHalf
 import EffortModel.StaggerType
+import KeyboardLayoutGeneration.renderCharEffortlayout
 import keyboard_analysis.CombinedLayoutData
 import keyboard_analysis.LayoutParser
 import java.io.File
@@ -13,7 +14,24 @@ import java.io.File
 //The purpose of these functions is to test the Effort layout generation and rendering of effort heatmaps.
 //physical hardware is stored along the layouts so in general use these functions are not going to be used
 fun main() {
-    testblankcolstagger()
+    generalRenderingTest("blankcolstagger.yaml")
+    generalRenderingTest("keebFourBlank.yaml")
+    generalRenderingTest("standardkeyboard.yaml")
+}
+
+fun generalRenderingTest(layoutFileName: String) {
+    val layoutFile = LayoutParser.resolveLayoutFile(layoutFileName, "keyboards")
+    if (layoutFile == null || !layoutFile.exists()) {
+        println("Hiba: A layout fájl nem található: $layoutFileName")
+        return
+    }
+
+    val layoutData = LayoutParser.parseLayout(layoutFile)
+    val outputDir = File("effortgrids").apply { mkdirs() }
+    val outputPath = File(outputDir, "${layoutFile.nameWithoutExtension}_heatmap.png").path
+
+    renderCharEffortlayout(layoutData, imageOutputPath = outputPath)
+    println("Elmentve ide: $outputPath")
 }
 fun standardKeyboardTest(){
     // Standard ISO/ANSI sor-eltolások az alapsorhoz (2. index) képest:
