@@ -1045,7 +1045,8 @@ fun EffortModelScreen(
     val templates = remember { listKeyboardLayouts("keyboards") }
     var selectedTemplate by remember { mutableStateOf(templates.firstOrNull()) }
     var generatorModelIndex by remember { mutableStateOf(0) }
-    var staggerType by remember { mutableStateOf(StaggerType.COLUMNAR_STAGGER) }
+    var leftStaggerType by remember { mutableStateOf(StaggerType.COLUMNAR_STAGGER) }
+    var rightStaggerType by remember { mutableStateOf(StaggerType.COLUMNAR_STAGGER) }
     var numRows by remember { mutableStateOf(5) }
     var homeRow by remember { mutableStateOf(2) }
     var angleDegrees by remember { mutableStateOf(0.0) }
@@ -1300,11 +1301,8 @@ fun EffortModelScreen(
                             runCatching {
                                 val data = LayoutParser.parseLayout(f)
                                 val hw = data.hardwareYaml
-                                staggerType = when (hw.staggerType.lowercase()) {
-                                    "columnar_stagger" -> StaggerType.COLUMNAR_STAGGER
-                                    "row_stagger" -> StaggerType.ROW_STAGGER
-                                    else -> StaggerType.MATRIX
-                                }
+                                leftStaggerType = hw.resolveLeftStaggerType()
+                                rightStaggerType = hw.resolveRightStaggerType()
                                 numRows = hw.numRows
                                 homeRow = hw.homeRowIndex
                                 angleDegrees = hw.angleOfApproachDegrees
@@ -1347,19 +1345,26 @@ fun EffortModelScreen(
                 Spacer(Modifier.height(8.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     DropdownSelector(
-                        label = "StaggerType",
+                        label = tr("Bal kéz StaggerType", "Left Hand StaggerType"),
                         options = StaggerType.entries,
-                        selected = staggerType,
-                        onSelect = { staggerType = it },
-                        modifier = Modifier.weight(2f)
+                        selected = leftStaggerType,
+                        onSelect = { leftStaggerType = it },
+                        modifier = Modifier.weight(1f)
                     )
-                    DoubleSettingField(tr("Szög (°)", "Angle (°)"), angleDegrees, { angleDegrees = it }, Modifier.weight(1f))
+                    DropdownSelector(
+                        label = tr("Jobb kéz StaggerType", "Right Hand StaggerType"),
+                        options = StaggerType.entries,
+                        selected = rightStaggerType,
+                        onSelect = { rightStaggerType = it },
+                        modifier = Modifier.weight(1f)
+                    )
                 }
 
                 Spacer(Modifier.height(8.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     IntSettingField(tr("Sorok (numRows)", "Rows (numRows)"), numRows, { numRows = it.coerceIn(2, 8) }, Modifier.weight(1f))
                     IntSettingField("HomeRow", homeRow, { homeRow = it.coerceIn(0, 7) }, Modifier.weight(1f))
+                    DoubleSettingField(tr("Szög (°)", "Angle (°)"), angleDegrees, { angleDegrees = it }, Modifier.weight(1f))
                 }
 
                 Spacer(Modifier.height(6.dp))
@@ -1406,8 +1411,8 @@ fun EffortModelScreen(
                             val rFin = rightFingersStr.split(",").map { parseFingerCode(it.trim()) }
                             val rAnc = rightAnchorsStr.split(",").map { it.trim().toInt() }
 
-                            val leftHalf = KeyboardHalf(Hand.LEFT, staggerType, numRows, lFin.size, lOff, homeRow)
-                            val rightHalf = KeyboardHalf(Hand.RIGHT, staggerType, numRows, rFin.size, rOff, homeRow)
+                            val leftHalf = KeyboardHalf(Hand.LEFT, leftStaggerType, numRows, lFin.size, lOff, homeRow)
+                            val rightHalf = KeyboardHalf(Hand.RIGHT, rightStaggerType, numRows, rFin.size, rOff, homeRow)
 
                             val leftConfigs = lFin.indices.map { i -> ColumnConfig(i, lAnc[i], lFin[i]) }
                             val rightConfigs = rFin.indices.map { i -> ColumnConfig(i, rAnc[i], rFin[i]) }
@@ -1467,11 +1472,16 @@ fun EffortModelScreen(
                             previewFile = outFile
                             previewBitmap = loadComposeBitmap(outFile)
 
+                            val staggerSummary = if (leftStaggerType == rightStaggerType) {
+                                "$leftStaggerType"
+                            } else {
+                                "L=$leftStaggerType, R=$rightStaggerType"
+                            }
                             val sb = StringBuilder()
                             sb.appendLine(
                                 lang.pick(
-                                    "=== GENERÁLT FIZIKAI EFFORT MÁTRIX ($staggerType, numRows=$numRows, homeRow=$homeRow) ===\n",
-                                    "=== GENERATED PHYSICAL EFFORT MATRIX ($staggerType, numRows=$numRows, homeRow=$homeRow) ===\n"
+                                    "=== GENERÁLT FIZIKAI EFFORT MÁTRIX ($staggerSummary, numRows=$numRows, homeRow=$homeRow) ===\n",
+                                    "=== GENERATED PHYSICAL EFFORT MATRIX ($staggerSummary, numRows=$numRows, homeRow=$homeRow) ===\n"
                                 )
                             )
                             for (r in 0 until numRows) {

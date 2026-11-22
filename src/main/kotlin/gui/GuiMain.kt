@@ -1057,7 +1057,10 @@ class MainGuiFrame : JFrame("Universal Keyboard Analyzer - Grafikus Felület") {
         val templateCombo = JComboBox<String>().apply {
             listKeyboardsInFolder("keyboards").forEach { addItem(it) }
         }
-        val staggerCombo = JComboBox(StaggerType.entries.toTypedArray()).apply {
+        val leftStaggerCombo = JComboBox(StaggerType.entries.toTypedArray()).apply {
+            selectedItem = StaggerType.COLUMNAR_STAGGER
+        }
+        val rightStaggerCombo = JComboBox(StaggerType.entries.toTypedArray()).apply {
             selectedItem = StaggerType.COLUMNAR_STAGGER
         }
         val generatorModelCombo = JComboBox(arrayOf("CustomKeyboardEffortGenerator (Biomechanikai fallal)", "ColemakDhEffortGenerator (Klasszikus)"))
@@ -1086,11 +1089,8 @@ class MainGuiFrame : JFrame("Universal Keyboard Analyzer - Grafikus Felület") {
             try {
                 val data = LayoutParser.parseLayout(file)
                 val hw = data.hardwareYaml
-                staggerCombo.selectedItem = when (hw.staggerType.lowercase()) {
-                    "columnar_stagger" -> StaggerType.COLUMNAR_STAGGER
-                    "row_stagger" -> StaggerType.ROW_STAGGER
-                    else -> StaggerType.MATRIX
-                }
+                leftStaggerCombo.selectedItem = hw.resolveLeftStaggerType()
+                rightStaggerCombo.selectedItem = hw.resolveRightStaggerType()
                 spNumRows.value = hw.numRows
                 spHomeRow.value = hw.homeRowIndex
                 spAngle.value = hw.angleOfApproachDegrees
@@ -1193,9 +1193,14 @@ class MainGuiFrame : JFrame("Universal Keyboard Analyzer - Grafikus Felület") {
             add(generatorModelCombo, gbc)
 
             gbc.gridx = 0; gbc.gridy = 2
-            add(JLabel("Stagger típus (StaggerType):"), gbc)
+            add(JLabel("Bal kéz stagger (StaggerType):"), gbc)
             gbc.gridx = 1
-            add(staggerCombo, gbc)
+            add(leftStaggerCombo, gbc)
+
+            gbc.gridx = 0; gbc.gridy = 3
+            add(JLabel("Jobb kéz stagger (StaggerType):"), gbc)
+            gbc.gridx = 1
+            add(rightStaggerCombo, gbc)
 
             val rowHomePanel = JPanel(GridLayout(1, 4, 4, 0)).apply {
                 add(JLabel("numRows:"))
@@ -1203,7 +1208,7 @@ class MainGuiFrame : JFrame("Universal Keyboard Analyzer - Grafikus Felület") {
                 add(JLabel("homeRow:"))
                 add(spHomeRow)
             }
-            gbc.gridx = 0; gbc.gridy = 3
+            gbc.gridx = 0; gbc.gridy = 4
             add(JLabel("Sorok és Alapsor index:"), gbc)
             gbc.gridx = 1
             add(rowHomePanel, gbc)
@@ -1212,37 +1217,37 @@ class MainGuiFrame : JFrame("Universal Keyboard Analyzer - Grafikus Felület") {
                 add(spAngle, BorderLayout.WEST)
                 add(cbOptimalFinger, BorderLayout.CENTER)
             }
-            gbc.gridx = 0; gbc.gridy = 4
+            gbc.gridx = 0; gbc.gridy = 5
             add(JLabel("Csuklószög (fok):"), gbc)
             gbc.gridx = 1
             add(angleOptPanel, gbc)
 
-            gbc.gridx = 0; gbc.gridy = 5
+            gbc.gridx = 0; gbc.gridy = 6
             add(JLabel("Bal kéz offsets:"), gbc)
             gbc.gridx = 1
             add(tfLeftOffsets, gbc)
 
-            gbc.gridx = 0; gbc.gridy = 6
+            gbc.gridx = 0; gbc.gridy = 7
             add(JLabel("Bal kéz fingers (P,R,M,I,T):"), gbc)
             gbc.gridx = 1
             add(tfLeftFingers, gbc)
 
-            gbc.gridx = 0; gbc.gridy = 7
+            gbc.gridx = 0; gbc.gridy = 8
             add(JLabel("Bal kéz anchors:"), gbc)
             gbc.gridx = 1
             add(tfLeftAnchors, gbc)
 
-            gbc.gridx = 0; gbc.gridy = 8
+            gbc.gridx = 0; gbc.gridy = 9
             add(JLabel("Jobb kéz offsets:"), gbc)
             gbc.gridx = 1
             add(tfRightOffsets, gbc)
 
-            gbc.gridx = 0; gbc.gridy = 9
+            gbc.gridx = 0; gbc.gridy = 10
             add(JLabel("Jobb kéz fingers (I,M,R,P,T):"), gbc)
             gbc.gridx = 1
             add(tfRightFingers, gbc)
 
-            gbc.gridx = 0; gbc.gridy = 10
+            gbc.gridx = 0; gbc.gridy = 11
             add(JLabel("Jobb kéz anchors:"), gbc)
             gbc.gridx = 1
             add(tfRightAnchors, gbc)
@@ -1252,7 +1257,8 @@ class MainGuiFrame : JFrame("Universal Keyboard Analyzer - Grafikus Felület") {
                 addActionListener {
                     try {
                         applyGlobalEffortSettings()
-                        val stagger = staggerCombo.selectedItem as StaggerType
+                        val leftStagger = leftStaggerCombo.selectedItem as StaggerType
+                        val rightStagger = rightStaggerCombo.selectedItem as StaggerType
                         val numRows = (spNumRows.value as Number).toInt()
                         val homeRow = (spHomeRow.value as Number).toInt()
                         val angle = (spAngle.value as Number).toDouble()
@@ -1275,8 +1281,8 @@ class MainGuiFrame : JFrame("Universal Keyboard Analyzer - Grafikus Felület") {
                         val rightFingers = tfRightFingers.text.split(",").map { parseFingerCode(it.trim()) }
                         val rightAnchors = tfRightAnchors.text.split(",").map { it.trim().toInt() }
 
-                        val leftHalf = KeyboardHalf(Hand.LEFT, stagger, numRows, leftFingers.size, leftOffsets, homeRow)
-                        val rightHalf = KeyboardHalf(Hand.RIGHT, stagger, numRows, rightFingers.size, rightOffsets, homeRow)
+                        val leftHalf = KeyboardHalf(Hand.LEFT, leftStagger, numRows, leftFingers.size, leftOffsets, homeRow)
+                        val rightHalf = KeyboardHalf(Hand.RIGHT, rightStagger, numRows, rightFingers.size, rightOffsets, homeRow)
 
                         val leftConfigs = leftFingers.indices.map { i -> ColumnConfig(i, leftAnchors[i], leftFingers[i]) }
                         val rightConfigs = rightFingers.indices.map { i -> ColumnConfig(i, rightAnchors[i], rightFingers[i]) }
@@ -1338,8 +1344,13 @@ class MainGuiFrame : JFrame("Universal Keyboard Analyzer - Grafikus Felület") {
                             heatmapPreviewPanel.setImage(img, outFile)
                         }
 
+                        val staggerSummary = if (leftStagger == rightStagger) {
+                            "$leftStagger"
+                        } else {
+                            "L=$leftStagger, R=$rightStagger"
+                        }
                         val sb = StringBuilder()
-                        sb.appendLine("=== GENERÁLT FIZIKAI EFFORT MÁTRIX ($stagger, numRows=$numRows, homeRow=$homeRow) ===")
+                        sb.appendLine("=== GENERÁLT FIZIKAI EFFORT MÁTRIX ($staggerSummary, numRows=$numRows, homeRow=$homeRow) ===")
                         for (r in 0 until numRows) {
                             val lStr = leftEffort[r].joinToString(" ") { String.format("%5.2f", it) }
                             val rStr = rightEffort[r].joinToString(" ") { String.format("%5.2f", it) }
@@ -1353,7 +1364,7 @@ class MainGuiFrame : JFrame("Universal Keyboard Analyzer - Grafikus Felület") {
                     }
                 }
             }
-            gbc.gridx = 0; gbc.gridy = 11; gbc.gridwidth = 2
+            gbc.gridx = 0; gbc.gridy = 12; gbc.gridwidth = 2
             add(btnRender, gbc)
         }
 

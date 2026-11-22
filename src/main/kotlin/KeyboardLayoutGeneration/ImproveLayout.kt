@@ -20,8 +20,8 @@ var ltsn = Pair("ltsnergomini","huszonkettoHuszonnegyeswikipediahuszonegy.txt")
 var qwertyenglish= Pair("qwertycolstag_en","monke.txt")
 
 fun main(){
-    val benchmarkRuns = 512
-    val polishTopN = 128 // Futtatás előtt átírható pl. 128-ra
+    val benchmarkRuns = 256
+    val polishTopN = 64 // Futtatás előtt átírható pl. 128-ra
 
     parallelImprovement(
         runs = benchmarkRuns,
