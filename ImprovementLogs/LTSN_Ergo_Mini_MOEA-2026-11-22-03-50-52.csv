@@ -1,0 +1,17 @@
+algorithm,stage,rank,run_index,mode,effort_before,effort_after,delta
+MOEA_GA,raw,1,7,Shuffled,42.6699,,
+MOEA_GA,raw,2,3,Shuffled,44.2790,,
+MOEA_GA,raw,3,1,Shuffled,44.2827,,
+MOEA_GA,raw,4,4,Shuffled,45.0355,,
+MOEA_GA,raw,5,5,Shuffled,47.9429,,
+MOEA_GA,raw,6,2,Shuffled,48.0807,,
+MOEA_GA,raw,7,8,Shuffled,50.6559,,
+MOEA_GA,raw,8,6,Shuffled,57.7464,,
+MOEA_GA,polished,1,7,Shuffled,42.6699,41.2293,-1.4406
+MOEA_GA,polished,2,4,Shuffled,45.0355,41.2555,-3.7800
+MOEA_GA,polished,3,3,Shuffled,44.2790,41.4016,-2.8775
+MOEA_GA,polished,4,1,Shuffled,44.2827,43.0967,-1.1860
+MOEA_GA,polished,5,2,Shuffled,48.0807,43.1710,-4.9097
+MOEA_GA,polished,6,5,Shuffled,47.9429,44.1132,-3.8297
+MOEA_GA,polished,7,6,Shuffled,57.7464,46.3582,-11.3882
+MOEA_GA,polished,8,8,Shuffled,50.6559,46.4656,-4.1903

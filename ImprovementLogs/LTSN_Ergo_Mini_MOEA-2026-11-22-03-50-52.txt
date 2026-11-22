@@ -1,0 +1,71 @@
+=== MOEA FRAMEWORK (GA + PMX + TOPOLÓGIA-MUTÁCIÓK + 2-OPT) LOG ===
+Billentyűzet: LTSN Ergo Mini
+Futtatás időpontja: 2026-11-22-03-50-52
+Korpusz neve: huszonkettoHuszonnegyeswikipediahuszonegy.txt
+Szigetek száma: 8 (Shuffled: 8) | Kiértékelés/sziget: 100000 | Populáció: 40
+2-opt csiszolási limit (polishTopN): 32 (Ténylegesen csiszolva: 8) | Hüvelykujj engedélyezve: Bal=false, Jobb=false
+Teljes futásidő: 715.1 mp
+
+--- CÉLFÜGGVÉNY SÚLYOK (WEIGHTS) ---
+Büntető súlyok (Penalties):
+ - weightCharReachEffort: 40.0
+ - weightGravity:         0.5
+ - weightHandImbalance:   4.0
+ - weightPinkyOff:        2.0
+ - weightSfb:             15.0
+ - weightFullScissor:     15.0
+ - weightHalfScissor:     7.5
+ - weightLateralStretch:  8.0
+ - weightPinkyStretch:    8.0
+ - weightRedirect:        4.0
+ - weightSpaceSfs1:       2.0
+ - weightRows (0..5):     [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+Jutalmazó súlyok (Rewards):
+ - weightHomeRow:         0.85
+ - weightAlternation:     1.0
+ - weightRoll:            1.3
+ - weightThreeRoll:       1.6
+
+--- TOP 3 EREDMÉNY ---
+1. Helyezett:
+ - Effort pontszám: 41.2293
+ - Származás: MOEA Framework GA (Shuffled, PMX + Topológia-mutációk + 2-opt)
+
+2. Helyezett:
+ - Effort pontszám: 41.2555
+ - Származás: MOEA Framework GA (Shuffled, PMX + Topológia-mutációk + 2-opt)
+
+3. Helyezett:
+ - Effort pontszám: 41.4016
+ - Származás: MOEA Framework GA (Shuffled, PMX + Topológia-mutációk + 2-opt)
+
+--- STATISZTIKAI ÖSSZEFOGLALÓ ---
+Összes nyers futás (csiszolás előtt) (n=8):
+ - Min: 42.6699 | Max: 57.7464 | Átlag: 47.5866 | Szórás: 4.5491
+ - P10: 43.7963 | P25: 44.2818 | Medián (P50): 46.4892 | P75: 48.7245 | P90: 52.7830
+
+2-opt csiszolt jelöltek (utána) (n=8):
+ - Min: 41.2293 | Max: 46.4656 | Átlag: 43.3864 | Szórás: 2.0033
+ - P10: 41.2476 | P25: 41.3650 | Medián (P50): 43.1339 | P75: 44.6744 | P90: 46.3904
+ - 2-opt javulás (delta): Átlag: -4.2003 | Legnagyobb javulás: -11.3882 | Legkisebb változás: -1.1860 | Javult: 8/8
+
+--- 2-OPT CSISZOLT JELÖLTEK (8 db, csiszolt effort szerint rendezve) ---
+#1 (Szál #7) | Előtte: 42.6699 -> Utána: 41.2293 (Delta: -1.4406) | Mód: Shuffled
+#2 (Szál #4) | Előtte: 45.0355 -> Utána: 41.2555 (Delta: -3.7800) | Mód: Shuffled
+#3 (Szál #3) | Előtte: 44.2790 -> Utána: 41.4016 (Delta: -2.8775) | Mód: Shuffled
+#4 (Szál #1) | Előtte: 44.2827 -> Utána: 43.0967 (Delta: -1.1860) | Mód: Shuffled
+#5 (Szál #2) | Előtte: 48.0807 -> Utána: 43.1710 (Delta: -4.9097) | Mód: Shuffled
+#6 (Szál #5) | Előtte: 47.9429 -> Utána: 44.1132 (Delta: -3.8297) | Mód: Shuffled
+#7 (Szál #6) | Előtte: 57.7464 -> Utána: 46.3582 (Delta: -11.3882) | Mód: Shuffled
+#8 (Szál #8) | Előtte: 50.6559 -> Utána: 46.4656 (Delta: -4.1903) | Mód: Shuffled
+
+--- ÖSSZES NYERS FUTÁS CSISZOLÁS ELŐTT (8 db, effort szerint rendezve) ---
+#1 (Szál #7) | Effort: 42.6699 | Mód: Shuffled
+#2 (Szál #3) | Effort: 44.2790 | Mód: Shuffled
+#3 (Szál #1) | Effort: 44.2827 | Mód: Shuffled
+#4 (Szál #4) | Effort: 45.0355 | Mód: Shuffled
+#5 (Szál #5) | Effort: 47.9429 | Mód: Shuffled
+#6 (Szál #2) | Effort: 48.0807 | Mód: Shuffled
+#7 (Szál #8) | Effort: 50.6559 | Mód: Shuffled
+#8 (Szál #6) | Effort: 57.7464 | Mód: Shuffled
+

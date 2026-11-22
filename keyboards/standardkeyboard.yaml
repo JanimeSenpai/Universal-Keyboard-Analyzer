@@ -1,0 +1,22 @@
+name: "standardkeyboard"
+hardware:
+  stagger_type: "row_stagger" # Standard ISO/ANSI sor-eltolás
+  num_rows: 5 # 4 fő sor + 1 hüvelykujj sor
+  home_row_index: 2
+  optimal_finger_assignment: false
+  angle_of_approach_degrees: 10.0 # Hagyományos (nem osztott) billentyűzetnél 10 fok
+  left:
+    offsets: [-0.75, -0.25, 0.0, 0.5] # Num (-0.75u), Top (-0.25u), Home (0.0u), Bottom (+0.5u)
+    fingers: ["P", "P", "R", "M", "I", "I"]
+    anchors: [1, 1, 2, 3, 4, 4]
+  right:
+    offsets: [-0.75, -0.25, 0.0, 0.5] # Standard billentyűzeten nem tükrözött a sor-eltolás
+    fingers: ["I", "I", "M", "R", "P", "P"]
+    anchors: [1, 1, 2, 3, 4, 4]
+matrix: |
+  __ _ _ __   __ _ _ __
+  __ _ _ __   __ _ _ __
+  __ _ _ __   __ _ _ __
+  __ _ _ __   __ _ _ __
+thumb_left: "_"
+thumb_right: "_"

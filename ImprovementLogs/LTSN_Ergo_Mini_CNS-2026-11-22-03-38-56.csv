@@ -1,0 +1,17 @@
+algorithm,stage,rank,run_index,mode,effort_before,effort_after,delta
+CNS_SelfTuningLam,raw,1,8,Shuffled,41.9167,,
+CNS_SelfTuningLam,raw,2,2,Shuffled,44.1037,,
+CNS_SelfTuningLam,raw,3,6,Shuffled,44.7150,,
+CNS_SelfTuningLam,raw,4,7,Shuffled,45.6900,,
+CNS_SelfTuningLam,raw,5,5,Shuffled,46.9423,,
+CNS_SelfTuningLam,raw,6,1,Original,48.5039,,
+CNS_SelfTuningLam,raw,7,4,Shuffled,49.7655,,
+CNS_SelfTuningLam,raw,8,3,Shuffled,52.1397,,
+CNS_SelfTuningLam,polished,1,8,Shuffled,41.9167,41.9167,0.0000
+CNS_SelfTuningLam,polished,2,2,Shuffled,44.1037,44.1037,0.0000
+CNS_SelfTuningLam,polished,3,6,Shuffled,44.7150,44.7150,0.0000
+CNS_SelfTuningLam,polished,4,5,Shuffled,46.9423,44.8826,-2.0597
+CNS_SelfTuningLam,polished,5,7,Shuffled,45.6900,44.9905,-0.6995
+CNS_SelfTuningLam,polished,6,1,Original,48.5039,48.5039,0.0000
+CNS_SelfTuningLam,polished,7,4,Shuffled,49.7655,49.7655,0.0000
+CNS_SelfTuningLam,polished,8,3,Shuffled,52.1397,52.1397,0.0000

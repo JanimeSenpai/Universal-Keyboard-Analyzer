@@ -17,16 +17,18 @@ import java.util.concurrent.atomic.AtomicInteger
 
 
 var ltsn = Pair("ltsnergomini","huszonkettoHuszonnegyeswikipediahuszonegy.txt")
+var ltsnRowStagger = Pair("ltsnergorowstagger","huszonkettoHuszonnegyeswikipediahuszonegy.txt")
 var qwertyenglish= Pair("qwertycolstag_en","monke.txt")
 
 fun main(){
     val benchmarkRuns = 256
-    val polishTopN = 64 // Futtatás előtt átírható pl. 128-ra
+    val polishTopN = 64
+    val target = ltsnRowStagger
 
     parallelImprovement(
         runs = benchmarkRuns,
-        keyboardname = ltsn.first,
-        corpusFileName = ltsn.second,
+        keyboardname = target.first,
+        corpusFileName = target.second,
         iterations = 50000,
         polishTopN = polishTopN
     )
@@ -35,8 +37,8 @@ fun main(){
         runs = benchmarkRuns,
         evaluationsPerRun = 50000,
         useSelfTuningLam = true,
-        keyboardname = ltsn.first,
-        corpusFileName = ltsn.second,
+        keyboardname = target.first,
+        corpusFileName = target.second,
         leftThumbEnabled = false,
         rightThumbEnabled = false,
         polishTopN = polishTopN
@@ -45,8 +47,8 @@ fun main(){
     parallelMoeaImprovement(
         islands = benchmarkRuns,
         evaluationsPerIsland = 100000,
-        keyboardname = ltsn.first,
-        corpusFileName = ltsn.second,
+        keyboardname = target.first,
+        corpusFileName = target.second,
         leftThumbEnabled = false,
         rightThumbEnabled = false,
         polishTopN = polishTopN

@@ -1,0 +1,375 @@
+=== MOEA FRAMEWORK (GA + PMX + TOPOLÓGIA-MUTÁCIÓK + 2-OPT) LOG ===
+Billentyűzet: LTSN Ergo Mini
+Futtatás időpontja: 2026-11-22-16-48-48
+Korpusz neve: huszonkettoHuszonnegyeswikipediahuszonegy.txt
+Szigetek száma: 256 (Shuffled: 256) | Kiértékelés/sziget: 100000 | Populáció: 40
+2-opt csiszolási limit (polishTopN): 64 (Ténylegesen csiszolva: 64) | Hüvelykujj engedélyezve: Bal=false, Jobb=false
+Teljes futásidő: 7177.0 mp
+
+--- CÉLFÜGGVÉNY SÚLYOK (WEIGHTS) ---
+Büntető súlyok (Penalties):
+ - weightCharReachEffort: 40.0
+ - weightGravity:         0.5
+ - weightHandImbalance:   4.0
+ - weightPinkyOff:        2.0
+ - weightSfb:             15.0
+ - weightFullScissor:     15.0
+ - weightHalfScissor:     7.5
+ - weightLateralStretch:  8.0
+ - weightPinkyStretch:    8.0
+ - weightRedirect:        4.0
+ - weightSpaceSfs1:       2.0
+ - weightRows (0..5):     [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+Jutalmazó súlyok (Rewards):
+ - weightHomeRow:         0.85
+ - weightAlternation:     1.0
+ - weightRoll:            1.3
+ - weightThreeRoll:       1.6
+
+--- TOP 3 EREDMÉNY ---
+1. Helyezett:
+ - Effort pontszám: 35.5523
+ - Származás: MOEA Framework GA (Shuffled, PMX + Topológia-mutációk + 2-opt)
+
+2. Helyezett:
+ - Effort pontszám: 37.2805
+ - Származás: MOEA Framework GA (Shuffled, PMX + Topológia-mutációk + 2-opt)
+
+3. Helyezett:
+ - Effort pontszám: 37.6070
+ - Származás: MOEA Framework GA (Shuffled, PMX + Topológia-mutációk + 2-opt)
+
+--- STATISZTIKAI ÖSSZEFOGLALÓ ---
+Összes nyers futás (csiszolás előtt) (n=256):
+ - Min: 38.4576 | Max: 60.7910 | Átlag: 47.4356 | Szórás: 3.8281
+ - P10: 42.7125 | P25: 44.6898 | Medián (P50): 47.1221 | P75: 49.8122 | P90: 52.5571
+
+2-opt csiszolt jelöltek (utána) (n=64):
+ - Min: 35.5523 | Max: 43.6449 | Átlag: 40.4019 | Szórás: 1.6773
+ - P10: 38.3764 | P25: 39.0458 | Medián (P50): 40.5090 | P75: 41.8053 | P90: 42.4980
+ - 2-opt javulás (delta): Átlag: -2.4740 | Legnagyobb javulás: -7.0388 | Legkisebb változás: -0.1823 | Javult: 64/64
+
+--- 2-OPT CSISZOLT JELÖLTEK (64 db, csiszolt effort szerint rendezve) ---
+#1 (Szál #15) | Előtte: 42.2253 -> Utána: 35.5523 (Delta: -6.6730) | Mód: Shuffled
+#2 (Szál #174) | Előtte: 42.9202 -> Utána: 37.2805 (Delta: -5.6397) | Mód: Shuffled
+#3 (Szál #131) | Előtte: 38.4576 -> Utána: 37.6070 (Delta: -0.8506) | Mód: Shuffled
+#4 (Szál #151) | Előtte: 44.6847 -> Utána: 37.6460 (Delta: -7.0388) | Mód: Shuffled
+#5 (Szál #225) | Előtte: 42.5945 -> Utána: 38.0333 (Delta: -4.5612) | Mód: Shuffled
+#6 (Szál #33) | Előtte: 39.3781 -> Utána: 38.2221 (Delta: -1.1560) | Mód: Shuffled
+#7 (Szál #98) | Előtte: 41.0784 -> Utána: 38.3322 (Delta: -2.7462) | Mód: Shuffled
+#8 (Szál #51) | Előtte: 41.1981 -> Utána: 38.4794 (Delta: -2.7187) | Mód: Shuffled
+#9 (Szál #140) | Előtte: 38.6835 -> Utána: 38.5012 (Delta: -0.1823) | Mód: Shuffled
+#10 (Szál #16) | Előtte: 43.8802 -> Utána: 38.5354 (Delta: -5.3448) | Mód: Shuffled
+#11 (Szál #193) | Előtte: 44.1335 -> Utána: 38.5806 (Delta: -5.5529) | Mód: Shuffled
+#12 (Szál #244) | Előtte: 43.5209 -> Utána: 38.6169 (Delta: -4.9040) | Mód: Shuffled
+#13 (Szál #123) | Előtte: 42.4101 -> Utána: 38.7774 (Delta: -3.6327) | Mód: Shuffled
+#14 (Szál #85) | Előtte: 40.3241 -> Utána: 38.8360 (Delta: -1.4882) | Mód: Shuffled
+#15 (Szál #97) | Előtte: 41.9001 -> Utána: 38.8499 (Delta: -3.0502) | Mód: Shuffled
+#16 (Szál #133) | Előtte: 40.5864 -> Utána: 39.0023 (Delta: -1.5841) | Mód: Shuffled
+#17 (Szál #25) | Előtte: 41.6171 -> Utána: 39.0602 (Delta: -2.5569) | Mód: Shuffled
+#18 (Szál #69) | Előtte: 42.1149 -> Utána: 39.1697 (Delta: -2.9453) | Mód: Shuffled
+#19 (Szál #253) | Előtte: 44.2787 -> Utána: 39.3841 (Delta: -4.8947) | Mód: Shuffled
+#20 (Szál #26) | Előtte: 41.6005 -> Utána: 39.4155 (Delta: -2.1850) | Mód: Shuffled
+#21 (Szál #88) | Előtte: 43.2524 -> Utána: 39.4560 (Delta: -3.7964) | Mód: Shuffled
+#22 (Szál #117) | Előtte: 41.1597 -> Utána: 39.8615 (Delta: -1.2982) | Mód: Shuffled
+#23 (Szál #8) | Előtte: 42.5064 -> Utána: 39.9971 (Delta: -2.5092) | Mód: Shuffled
+#24 (Szál #176) | Előtte: 43.9029 -> Utána: 40.0008 (Delta: -3.9021) | Mód: Shuffled
+#25 (Szál #104) | Előtte: 41.4770 -> Utána: 40.0132 (Delta: -1.4638) | Mód: Shuffled
+#26 (Szál #186) | Előtte: 43.2656 -> Utána: 40.0419 (Delta: -3.2237) | Mód: Shuffled
+#27 (Szál #185) | Előtte: 41.0904 -> Utána: 40.0543 (Delta: -1.0362) | Mód: Shuffled
+#28 (Szál #46) | Előtte: 42.2883 -> Utána: 40.1117 (Delta: -2.1766) | Mód: Shuffled
+#29 (Szál #198) | Előtte: 41.2561 -> Utána: 40.1250 (Delta: -1.1311) | Mód: Shuffled
+#30 (Szál #20) | Előtte: 44.2659 -> Utána: 40.3887 (Delta: -3.8772) | Mód: Shuffled
+#31 (Szál #13) | Előtte: 43.0798 -> Utána: 40.3887 (Delta: -2.6911) | Mód: Shuffled
+#32 (Szál #24) | Előtte: 43.4303 -> Utána: 40.4618 (Delta: -2.9684) | Mód: Shuffled
+#33 (Szál #81) | Előtte: 41.8580 -> Utána: 40.5562 (Delta: -1.3017) | Mód: Shuffled
+#34 (Szál #21) | Előtte: 43.7181 -> Utána: 40.6154 (Delta: -3.1027) | Mód: Shuffled
+#35 (Szál #113) | Előtte: 43.1077 -> Utána: 40.6161 (Delta: -2.4916) | Mód: Shuffled
+#36 (Szál #251) | Előtte: 42.4383 -> Utána: 40.7828 (Delta: -1.6555) | Mód: Shuffled
+#37 (Szál #56) | Előtte: 42.0921 -> Utána: 40.8057 (Delta: -1.2865) | Mód: Shuffled
+#38 (Szál #96) | Előtte: 44.6269 -> Utána: 40.8817 (Delta: -3.7453) | Mód: Shuffled
+#39 (Szál #201) | Előtte: 44.3873 -> Utána: 41.0275 (Delta: -3.3598) | Mód: Shuffled
+#40 (Szál #120) | Előtte: 42.8602 -> Utána: 41.0731 (Delta: -1.7871) | Mód: Shuffled
+#41 (Szál #247) | Előtte: 42.0639 -> Utána: 41.1352 (Delta: -0.9287) | Mód: Shuffled
+#42 (Szál #72) | Előtte: 42.5209 -> Utána: 41.1787 (Delta: -1.3422) | Mód: Shuffled
+#43 (Szál #138) | Előtte: 43.7988 -> Utána: 41.2853 (Delta: -2.5135) | Mód: Shuffled
+#44 (Szál #100) | Előtte: 44.6136 -> Utána: 41.3013 (Delta: -3.3123) | Mód: Shuffled
+#45 (Szál #12) | Előtte: 44.3428 -> Utána: 41.4021 (Delta: -2.9407) | Mód: Shuffled
+#46 (Szál #135) | Előtte: 44.2290 -> Utána: 41.6113 (Delta: -2.6177) | Mód: Shuffled
+#47 (Szál #36) | Előtte: 42.8304 -> Utána: 41.6208 (Delta: -1.2096) | Mód: Shuffled
+#48 (Szál #121) | Előtte: 44.0773 -> Utána: 41.7874 (Delta: -2.2899) | Mód: Shuffled
+#49 (Szál #61) | Előtte: 43.9692 -> Utána: 41.8591 (Delta: -2.1100) | Mód: Shuffled
+#50 (Szál #212) | Előtte: 43.9191 -> Utána: 41.8842 (Delta: -2.0349) | Mód: Shuffled
+#51 (Szál #192) | Előtte: 44.1862 -> Utána: 41.8850 (Delta: -2.3012) | Mód: Shuffled
+#52 (Szál #5) | Előtte: 43.5816 -> Utána: 41.9151 (Delta: -1.6665) | Mód: Shuffled
+#53 (Szál #53) | Előtte: 44.0321 -> Utána: 41.9885 (Delta: -2.0436) | Mód: Shuffled
+#54 (Szál #237) | Előtte: 43.7940 -> Utána: 42.0862 (Delta: -1.7078) | Mód: Shuffled
+#55 (Szál #35) | Előtte: 44.3132 -> Utána: 42.1988 (Delta: -2.1144) | Mód: Shuffled
+#56 (Szál #232) | Előtte: 42.5849 -> Utána: 42.2482 (Delta: -0.3367) | Mód: Shuffled
+#57 (Szál #92) | Előtte: 43.2400 -> Utána: 42.4950 (Delta: -0.7451) | Mód: Shuffled
+#58 (Szál #17) | Előtte: 43.5059 -> Utána: 42.4993 (Delta: -1.0066) | Mód: Shuffled
+#59 (Szál #216) | Előtte: 42.9084 -> Utána: 42.5232 (Delta: -0.3852) | Mód: Shuffled
+#60 (Szál #87) | Előtte: 44.6544 -> Utána: 42.5768 (Delta: -2.0776) | Mód: Shuffled
+#61 (Szál #202) | Előtte: 44.2370 -> Utána: 42.6384 (Delta: -1.5986) | Mód: Shuffled
+#62 (Szál #147) | Előtte: 43.8895 -> Utána: 43.2244 (Delta: -0.6651) | Mód: Shuffled
+#63 (Szál #102) | Előtte: 44.5308 -> Utána: 43.5920 (Delta: -0.9388) | Mód: Shuffled
+#64 (Szál #3) | Előtte: 44.5824 -> Utána: 43.6449 (Delta: -0.9376) | Mód: Shuffled
+
+--- ÖSSZES NYERS FUTÁS CSISZOLÁS ELŐTT (256 db, effort szerint rendezve) ---
+#1 (Szál #131) | Effort: 38.4576 | Mód: Shuffled
+#2 (Szál #140) | Effort: 38.6835 | Mód: Shuffled
+#3 (Szál #33) | Effort: 39.3781 | Mód: Shuffled
+#4 (Szál #85) | Effort: 40.3241 | Mód: Shuffled
+#5 (Szál #133) | Effort: 40.5864 | Mód: Shuffled
+#6 (Szál #98) | Effort: 41.0784 | Mód: Shuffled
+#7 (Szál #185) | Effort: 41.0904 | Mód: Shuffled
+#8 (Szál #117) | Effort: 41.1597 | Mód: Shuffled
+#9 (Szál #51) | Effort: 41.1981 | Mód: Shuffled
+#10 (Szál #198) | Effort: 41.2561 | Mód: Shuffled
+#11 (Szál #104) | Effort: 41.4770 | Mód: Shuffled
+#12 (Szál #26) | Effort: 41.6005 | Mód: Shuffled
+#13 (Szál #25) | Effort: 41.6171 | Mód: Shuffled
+#14 (Szál #81) | Effort: 41.8580 | Mód: Shuffled
+#15 (Szál #97) | Effort: 41.9001 | Mód: Shuffled
+#16 (Szál #247) | Effort: 42.0639 | Mód: Shuffled
+#17 (Szál #56) | Effort: 42.0921 | Mód: Shuffled
+#18 (Szál #69) | Effort: 42.1149 | Mód: Shuffled
+#19 (Szál #15) | Effort: 42.2253 | Mód: Shuffled
+#20 (Szál #46) | Effort: 42.2883 | Mód: Shuffled
+#21 (Szál #123) | Effort: 42.4101 | Mód: Shuffled
+#22 (Szál #251) | Effort: 42.4383 | Mód: Shuffled
+#23 (Szál #8) | Effort: 42.5064 | Mód: Shuffled
+#24 (Szál #72) | Effort: 42.5209 | Mód: Shuffled
+#25 (Szál #232) | Effort: 42.5849 | Mód: Shuffled
+#26 (Szál #225) | Effort: 42.5945 | Mód: Shuffled
+#27 (Szál #36) | Effort: 42.8304 | Mód: Shuffled
+#28 (Szál #120) | Effort: 42.8602 | Mód: Shuffled
+#29 (Szál #216) | Effort: 42.9084 | Mód: Shuffled
+#30 (Szál #174) | Effort: 42.9202 | Mód: Shuffled
+#31 (Szál #13) | Effort: 43.0798 | Mód: Shuffled
+#32 (Szál #113) | Effort: 43.1077 | Mód: Shuffled
+#33 (Szál #92) | Effort: 43.2400 | Mód: Shuffled
+#34 (Szál #88) | Effort: 43.2524 | Mód: Shuffled
+#35 (Szál #186) | Effort: 43.2656 | Mód: Shuffled
+#36 (Szál #24) | Effort: 43.4303 | Mód: Shuffled
+#37 (Szál #17) | Effort: 43.5059 | Mód: Shuffled
+#38 (Szál #244) | Effort: 43.5209 | Mód: Shuffled
+#39 (Szál #5) | Effort: 43.5816 | Mód: Shuffled
+#40 (Szál #21) | Effort: 43.7181 | Mód: Shuffled
+#41 (Szál #237) | Effort: 43.7940 | Mód: Shuffled
+#42 (Szál #138) | Effort: 43.7988 | Mód: Shuffled
+#43 (Szál #16) | Effort: 43.8802 | Mód: Shuffled
+#44 (Szál #147) | Effort: 43.8895 | Mód: Shuffled
+#45 (Szál #176) | Effort: 43.9029 | Mód: Shuffled
+#46 (Szál #212) | Effort: 43.9191 | Mód: Shuffled
+#47 (Szál #61) | Effort: 43.9692 | Mód: Shuffled
+#48 (Szál #53) | Effort: 44.0321 | Mód: Shuffled
+#49 (Szál #121) | Effort: 44.0773 | Mód: Shuffled
+#50 (Szál #193) | Effort: 44.1335 | Mód: Shuffled
+#51 (Szál #192) | Effort: 44.1862 | Mód: Shuffled
+#52 (Szál #135) | Effort: 44.2290 | Mód: Shuffled
+#53 (Szál #202) | Effort: 44.2370 | Mód: Shuffled
+#54 (Szál #20) | Effort: 44.2659 | Mód: Shuffled
+#55 (Szál #253) | Effort: 44.2787 | Mód: Shuffled
+#56 (Szál #35) | Effort: 44.3132 | Mód: Shuffled
+#57 (Szál #12) | Effort: 44.3428 | Mód: Shuffled
+#58 (Szál #201) | Effort: 44.3873 | Mód: Shuffled
+#59 (Szál #102) | Effort: 44.5308 | Mód: Shuffled
+#60 (Szál #3) | Effort: 44.5824 | Mód: Shuffled
+#61 (Szál #100) | Effort: 44.6136 | Mód: Shuffled
+#62 (Szál #96) | Effort: 44.6269 | Mód: Shuffled
+#63 (Szál #87) | Effort: 44.6544 | Mód: Shuffled
+#64 (Szál #151) | Effort: 44.6847 | Mód: Shuffled
+#65 (Szál #233) | Effort: 44.6915 | Mód: Shuffled
+#66 (Szál #162) | Effort: 44.7116 | Mód: Shuffled
+#67 (Szál #30) | Effort: 44.7447 | Mód: Shuffled
+#68 (Szál #18) | Effort: 44.7954 | Mód: Shuffled
+#69 (Szál #37) | Effort: 44.7965 | Mód: Shuffled
+#70 (Szál #166) | Effort: 44.8044 | Mód: Shuffled
+#71 (Szál #168) | Effort: 44.8470 | Mód: Shuffled
+#72 (Szál #155) | Effort: 44.8655 | Mód: Shuffled
+#73 (Szál #130) | Effort: 44.9626 | Mód: Shuffled
+#74 (Szál #170) | Effort: 45.0186 | Mód: Shuffled
+#75 (Szál #209) | Effort: 45.0757 | Mód: Shuffled
+#76 (Szál #59) | Effort: 45.1424 | Mód: Shuffled
+#77 (Szál #112) | Effort: 45.2038 | Mód: Shuffled
+#78 (Szál #48) | Effort: 45.2251 | Mód: Shuffled
+#79 (Szál #235) | Effort: 45.2285 | Mód: Shuffled
+#80 (Szál #40) | Effort: 45.2292 | Mód: Shuffled
+#81 (Szál #145) | Effort: 45.2665 | Mód: Shuffled
+#82 (Szál #129) | Effort: 45.2817 | Mód: Shuffled
+#83 (Szál #70) | Effort: 45.2972 | Mód: Shuffled
+#84 (Szál #178) | Effort: 45.3748 | Mód: Shuffled
+#85 (Szál #191) | Effort: 45.4104 | Mód: Shuffled
+#86 (Szál #4) | Effort: 45.4668 | Mód: Shuffled
+#87 (Szál #223) | Effort: 45.5668 | Mód: Shuffled
+#88 (Szál #252) | Effort: 45.5824 | Mód: Shuffled
+#89 (Szál #158) | Effort: 45.6160 | Mód: Shuffled
+#90 (Szál #29) | Effort: 45.6245 | Mód: Shuffled
+#91 (Szál #187) | Effort: 45.6853 | Mód: Shuffled
+#92 (Szál #139) | Effort: 45.7041 | Mód: Shuffled
+#93 (Szál #227) | Effort: 45.7690 | Mód: Shuffled
+#94 (Szál #255) | Effort: 45.9549 | Mód: Shuffled
+#95 (Szál #93) | Effort: 45.9583 | Mód: Shuffled
+#96 (Szál #206) | Effort: 45.9724 | Mód: Shuffled
+#97 (Szál #63) | Effort: 45.9754 | Mód: Shuffled
+#98 (Szál #38) | Effort: 45.9840 | Mód: Shuffled
+#99 (Szál #199) | Effort: 46.0090 | Mód: Shuffled
+#100 (Szál #144) | Effort: 46.0669 | Mód: Shuffled
+#101 (Szál #246) | Effort: 46.0837 | Mód: Shuffled
+#102 (Szál #128) | Effort: 46.1281 | Mód: Shuffled
+#103 (Szál #196) | Effort: 46.1428 | Mód: Shuffled
+#104 (Szál #125) | Effort: 46.1800 | Mód: Shuffled
+#105 (Szál #213) | Effort: 46.2597 | Mód: Shuffled
+#106 (Szál #107) | Effort: 46.3004 | Mód: Shuffled
+#107 (Szál #83) | Effort: 46.3548 | Mód: Shuffled
+#108 (Szál #205) | Effort: 46.3611 | Mód: Shuffled
+#109 (Szál #222) | Effort: 46.3641 | Mód: Shuffled
+#110 (Szál #236) | Effort: 46.3678 | Mód: Shuffled
+#111 (Szál #241) | Effort: 46.4128 | Mód: Shuffled
+#112 (Szál #214) | Effort: 46.4306 | Mód: Shuffled
+#113 (Szál #156) | Effort: 46.4952 | Mód: Shuffled
+#114 (Szál #86) | Effort: 46.5099 | Mód: Shuffled
+#115 (Szál #109) | Effort: 46.5572 | Mód: Shuffled
+#116 (Szál #234) | Effort: 46.5683 | Mód: Shuffled
+#117 (Szál #148) | Effort: 46.7563 | Mód: Shuffled
+#118 (Szál #231) | Effort: 46.8256 | Mód: Shuffled
+#119 (Szál #154) | Effort: 46.8324 | Mód: Shuffled
+#120 (Szál #111) | Effort: 46.8562 | Mód: Shuffled
+#121 (Szál #204) | Effort: 46.8902 | Mód: Shuffled
+#122 (Szál #74) | Effort: 46.9227 | Mód: Shuffled
+#123 (Szál #200) | Effort: 46.9527 | Mód: Shuffled
+#124 (Szál #44) | Effort: 46.9819 | Mód: Shuffled
+#125 (Szál #136) | Effort: 47.0294 | Mód: Shuffled
+#126 (Szál #173) | Effort: 47.1069 | Mód: Shuffled
+#127 (Szál #146) | Effort: 47.1075 | Mód: Shuffled
+#128 (Szál #94) | Effort: 47.1190 | Mód: Shuffled
+#129 (Szál #116) | Effort: 47.1253 | Mód: Shuffled
+#130 (Szál #58) | Effort: 47.1622 | Mód: Shuffled
+#131 (Szál #82) | Effort: 47.2350 | Mód: Shuffled
+#132 (Szál #208) | Effort: 47.2839 | Mód: Shuffled
+#133 (Szál #11) | Effort: 47.3359 | Mód: Shuffled
+#134 (Szál #45) | Effort: 47.3450 | Mód: Shuffled
+#135 (Szál #175) | Effort: 47.3709 | Mód: Shuffled
+#136 (Szál #27) | Effort: 47.4165 | Mód: Shuffled
+#137 (Szál #119) | Effort: 47.4227 | Mód: Shuffled
+#138 (Szál #182) | Effort: 47.4796 | Mód: Shuffled
+#139 (Szál #76) | Effort: 47.4936 | Mód: Shuffled
+#140 (Szál #190) | Effort: 47.5132 | Mód: Shuffled
+#141 (Szál #2) | Effort: 47.5707 | Mód: Shuffled
+#142 (Szál #226) | Effort: 47.6140 | Mód: Shuffled
+#143 (Szál #90) | Effort: 47.6341 | Mód: Shuffled
+#144 (Szál #127) | Effort: 47.6735 | Mód: Shuffled
+#145 (Szál #28) | Effort: 47.7368 | Mód: Shuffled
+#146 (Szál #183) | Effort: 47.7523 | Mód: Shuffled
+#147 (Szál #248) | Effort: 47.7574 | Mód: Shuffled
+#148 (Szál #49) | Effort: 47.8355 | Mód: Shuffled
+#149 (Szál #250) | Effort: 47.8510 | Mód: Shuffled
+#150 (Szál #95) | Effort: 47.9250 | Mód: Shuffled
+#151 (Szál #57) | Effort: 47.9748 | Mód: Shuffled
+#152 (Szál #110) | Effort: 47.9808 | Mód: Shuffled
+#153 (Szál #188) | Effort: 47.9832 | Mód: Shuffled
+#154 (Szál #219) | Effort: 48.0320 | Mód: Shuffled
+#155 (Szál #118) | Effort: 48.1861 | Mód: Shuffled
+#156 (Szál #240) | Effort: 48.2223 | Mód: Shuffled
+#157 (Szál #55) | Effort: 48.2731 | Mód: Shuffled
+#158 (Szál #152) | Effort: 48.2846 | Mód: Shuffled
+#159 (Szál #9) | Effort: 48.3434 | Mód: Shuffled
+#160 (Szál #31) | Effort: 48.3876 | Mód: Shuffled
+#161 (Szál #184) | Effort: 48.4411 | Mód: Shuffled
+#162 (Szál #203) | Effort: 48.4461 | Mód: Shuffled
+#163 (Szál #243) | Effort: 48.4505 | Mód: Shuffled
+#164 (Szál #89) | Effort: 48.5022 | Mód: Shuffled
+#165 (Szál #180) | Effort: 48.5210 | Mód: Shuffled
+#166 (Szál #14) | Effort: 48.6247 | Mód: Shuffled
+#167 (Szál #52) | Effort: 48.6537 | Mód: Shuffled
+#168 (Szál #47) | Effort: 48.6540 | Mód: Shuffled
+#169 (Szál #221) | Effort: 48.6786 | Mód: Shuffled
+#170 (Szál #108) | Effort: 48.7021 | Mód: Shuffled
+#171 (Szál #254) | Effort: 48.7743 | Mód: Shuffled
+#172 (Szál #245) | Effort: 48.7754 | Mód: Shuffled
+#173 (Szál #195) | Effort: 48.7905 | Mód: Shuffled
+#174 (Szál #43) | Effort: 48.8101 | Mód: Shuffled
+#175 (Szál #134) | Effort: 48.8496 | Mód: Shuffled
+#176 (Szál #78) | Effort: 48.8554 | Mód: Shuffled
+#177 (Szál #242) | Effort: 48.9059 | Mód: Shuffled
+#178 (Szál #68) | Effort: 48.9412 | Mód: Shuffled
+#179 (Szál #172) | Effort: 48.9508 | Mód: Shuffled
+#180 (Szál #207) | Effort: 49.0395 | Mód: Shuffled
+#181 (Szál #39) | Effort: 49.2223 | Mód: Shuffled
+#182 (Szál #10) | Effort: 49.2585 | Mód: Shuffled
+#183 (Szál #149) | Effort: 49.2594 | Mód: Shuffled
+#184 (Szál #229) | Effort: 49.3409 | Mód: Shuffled
+#185 (Szál #143) | Effort: 49.4071 | Mód: Shuffled
+#186 (Szál #32) | Effort: 49.4303 | Mód: Shuffled
+#187 (Szál #230) | Effort: 49.4542 | Mód: Shuffled
+#188 (Szál #197) | Effort: 49.4663 | Mód: Shuffled
+#189 (Szál #19) | Effort: 49.4957 | Mód: Shuffled
+#190 (Szál #122) | Effort: 49.5953 | Mód: Shuffled
+#191 (Szál #177) | Effort: 49.7336 | Mód: Shuffled
+#192 (Szál #54) | Effort: 49.7960 | Mód: Shuffled
+#193 (Szál #137) | Effort: 49.8608 | Mód: Shuffled
+#194 (Szál #217) | Effort: 49.8749 | Mód: Shuffled
+#195 (Szál #150) | Effort: 49.9750 | Mód: Shuffled
+#196 (Szál #141) | Effort: 50.1272 | Mód: Shuffled
+#197 (Szál #239) | Effort: 50.1599 | Mód: Shuffled
+#198 (Szál #124) | Effort: 50.2129 | Mód: Shuffled
+#199 (Szál #50) | Effort: 50.2424 | Mód: Shuffled
+#200 (Szál #101) | Effort: 50.2510 | Mód: Shuffled
+#201 (Szál #80) | Effort: 50.5120 | Mód: Shuffled
+#202 (Szál #169) | Effort: 50.5768 | Mód: Shuffled
+#203 (Szál #153) | Effort: 50.5905 | Mód: Shuffled
+#204 (Szál #224) | Effort: 50.5975 | Mód: Shuffled
+#205 (Szál #115) | Effort: 50.6667 | Mód: Shuffled
+#206 (Szál #167) | Effort: 50.7094 | Mód: Shuffled
+#207 (Szál #249) | Effort: 50.7820 | Mód: Shuffled
+#208 (Szál #142) | Effort: 50.9429 | Mód: Shuffled
+#209 (Szál #67) | Effort: 51.1352 | Mód: Shuffled
+#210 (Szál #77) | Effort: 51.2266 | Mód: Shuffled
+#211 (Szál #22) | Effort: 51.2314 | Mód: Shuffled
+#212 (Szál #194) | Effort: 51.5634 | Mód: Shuffled
+#213 (Szál #60) | Effort: 51.5856 | Mód: Shuffled
+#214 (Szál #220) | Effort: 51.5966 | Mód: Shuffled
+#215 (Szál #1) | Effort: 51.6102 | Mód: Shuffled
+#216 (Szál #65) | Effort: 51.6242 | Mód: Shuffled
+#217 (Szál #73) | Effort: 51.6294 | Mód: Shuffled
+#218 (Szál #165) | Effort: 51.7067 | Mód: Shuffled
+#219 (Szál #256) | Effort: 51.8104 | Mód: Shuffled
+#220 (Szál #41) | Effort: 51.8603 | Mód: Shuffled
+#221 (Szál #218) | Effort: 51.8700 | Mód: Shuffled
+#222 (Szál #71) | Effort: 52.0092 | Mód: Shuffled
+#223 (Szál #84) | Effort: 52.0786 | Mód: Shuffled
+#224 (Szál #23) | Effort: 52.1360 | Mód: Shuffled
+#225 (Szál #189) | Effort: 52.2543 | Mód: Shuffled
+#226 (Szál #238) | Effort: 52.2923 | Mód: Shuffled
+#227 (Szál #42) | Effort: 52.3675 | Mód: Shuffled
+#228 (Szál #164) | Effort: 52.3946 | Mód: Shuffled
+#229 (Szál #114) | Effort: 52.4178 | Mód: Shuffled
+#230 (Szál #62) | Effort: 52.4440 | Mód: Shuffled
+#231 (Szál #79) | Effort: 52.6702 | Mód: Shuffled
+#232 (Szál #210) | Effort: 52.8167 | Mód: Shuffled
+#233 (Szál #6) | Effort: 52.9024 | Mód: Shuffled
+#234 (Szál #7) | Effort: 52.9524 | Mód: Shuffled
+#235 (Szál #66) | Effort: 53.0188 | Mód: Shuffled
+#236 (Szál #228) | Effort: 53.0580 | Mód: Shuffled
+#237 (Szál #34) | Effort: 53.0892 | Mód: Shuffled
+#238 (Szál #91) | Effort: 53.3302 | Mód: Shuffled
+#239 (Szál #64) | Effort: 53.5208 | Mód: Shuffled
+#240 (Szál #181) | Effort: 53.5707 | Mód: Shuffled
+#241 (Szál #159) | Effort: 53.5962 | Mód: Shuffled
+#242 (Szál #179) | Effort: 53.6675 | Mód: Shuffled
+#243 (Szál #163) | Effort: 53.6896 | Mód: Shuffled
+#244 (Szál #160) | Effort: 53.7236 | Mód: Shuffled
+#245 (Szál #126) | Effort: 53.7644 | Mód: Shuffled
+#246 (Szál #132) | Effort: 53.9261 | Mód: Shuffled
+#247 (Szál #106) | Effort: 54.3659 | Mód: Shuffled
+#248 (Szál #105) | Effort: 54.5253 | Mód: Shuffled
+#249 (Szál #215) | Effort: 55.0360 | Mód: Shuffled
+#250 (Szál #211) | Effort: 56.1598 | Mód: Shuffled
+#251 (Szál #161) | Effort: 56.2632 | Mód: Shuffled
+#252 (Szál #157) | Effort: 56.8659 | Mód: Shuffled
+#253 (Szál #75) | Effort: 56.9267 | Mód: Shuffled
+#254 (Szál #103) | Effort: 57.4940 | Mód: Shuffled
+#255 (Szál #171) | Effort: 57.9828 | Mód: Shuffled
+#256 (Szál #99) | Effort: 60.7910 | Mód: Shuffled
+
