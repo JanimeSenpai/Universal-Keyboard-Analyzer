@@ -11,7 +11,7 @@ object EffortGeneratorSettings {
     var activationMargin: Double = 0.3
     var boxInKeySpace: Boolean = false
     var biomechanicalWallMultiplierY: Double = 25.0
-    var biomechanicalWallMultiplierX: Double = 5.5
+    var biomechanicalWallMultiplierX: Double = 25.0
     var overrideApplyStaticFingerOffsets: Boolean? = null // null = automatikus (staggerType != COLUMNAR_STAGGER)
 
     fun resetDefaults() {
