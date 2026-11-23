@@ -20,7 +20,7 @@ object EffortGeneratorSettings {
         activationMargin = 0.3
         boxInKeySpace = false
         biomechanicalWallMultiplierY = 25.0
-        biomechanicalWallMultiplierX = 5.5
+        biomechanicalWallMultiplierX = 25.0
         overrideApplyStaticFingerOffsets = null
     }
 }
