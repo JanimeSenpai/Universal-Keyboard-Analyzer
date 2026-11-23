@@ -62,8 +62,8 @@ fun lateralStretchAnalysis(
         val p1 = charPositions[bigram[0]] ?: continue
         val p2 = charPositions[bigram[1]] ?: continue
 
-        // Azonos kéz, és a logikai oszlopok távolsága legalább 4 (pl. mutatóujj és kisujj közötti extrém nyújtózás)
-        if (p1.hand == p2.hand && Math.abs(p1.col - p2.col) >= 4) {
+        // Azonos kéz, hüvelykujjat (finger == 4 vagy 5) kihagyjuk, és a logikai oszlopok távolsága legalább 4 (pl. mutatóujj és kisujj közötti extrém nyújtózás)
+        if (p1.hand == p2.hand && p1.finger != 4 && p1.finger != 5 && p2.finger != 4 && p2.finger != 5 && Math.abs(p1.col - p2.col) >= 4) {
             totalStretch += percentage // Közvetlenül a százalékot adjuk hozzá
         }
     }

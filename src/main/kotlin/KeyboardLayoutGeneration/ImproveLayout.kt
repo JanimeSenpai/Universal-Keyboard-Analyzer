@@ -17,6 +17,7 @@ import java.util.concurrent.atomic.AtomicInteger
 
 
 var ltsn = Pair("ltsnergomini","huszonkettoHuszonnegyeswikipediahuszonegy.txt")
+var ltsnthumb = Pair("ltsnergomini-thumb","huszonkettoHuszonnegyeswikipediahuszonegy.txt")
 var ltsnRowStagger = Pair("ltsnergorowstagger","huszonkettoHuszonnegyeswikipediahuszonegy.txt")
 var qwertyenglish= Pair("qwertycolstag_en","monke.txt")
 
@@ -25,10 +26,22 @@ fun main(){
     val polishTopN = 64
     val target = ltsnRowStagger
 
+
+    parallelChipsNSalsaImprovement(
+        runs = benchmarkRuns,
+        evaluationsPerRun = 50000,
+        useSelfTuningLam = true,
+        keyboardname = ltsnthumb.first,
+        corpusFileName = ltsnthumb.second,
+        leftThumbEnabled = false,
+        rightThumbEnabled = true,
+        polishTopN = polishTopN
+    )
+
     parallelImprovement(
         runs = benchmarkRuns,
-        keyboardname = target.first,
-        corpusFileName = target.second,
+        keyboardname = ltsn.first,
+        corpusFileName = ltsn.second,
         iterations = 50000,
         polishTopN = polishTopN
     )
@@ -37,18 +50,47 @@ fun main(){
         runs = benchmarkRuns,
         evaluationsPerRun = 50000,
         useSelfTuningLam = true,
-        keyboardname = target.first,
-        corpusFileName = target.second,
+        keyboardname = ltsn.first,
+        corpusFileName = ltsn.second,
         leftThumbEnabled = false,
         rightThumbEnabled = false,
         polishTopN = polishTopN
     )
 
+    parallelImprovement(
+        runs = benchmarkRuns,
+        keyboardname = ltsnRowStagger.first,
+        corpusFileName = ltsnRowStagger.second,
+        iterations = 50000,
+        polishTopN = polishTopN
+    )
+
+    parallelChipsNSalsaImprovement(
+        runs = benchmarkRuns,
+        evaluationsPerRun = 50000,
+        useSelfTuningLam = true,
+        keyboardname = ltsnRowStagger.first,
+        corpusFileName = ltsnRowStagger.second,
+        leftThumbEnabled = false,
+        rightThumbEnabled = false,
+        polishTopN = polishTopN
+    )
+
+
     parallelMoeaImprovement(
         islands = benchmarkRuns,
         evaluationsPerIsland = 100000,
-        keyboardname = target.first,
-        corpusFileName = target.second,
+        keyboardname = ltsn.first,
+        corpusFileName = ltsn.second,
+        leftThumbEnabled = false,
+        rightThumbEnabled = false,
+        polishTopN = polishTopN
+    )
+    parallelMoeaImprovement(
+        islands = benchmarkRuns,
+        evaluationsPerIsland = 100000,
+        keyboardname = ltsnRowStagger.first,
+        corpusFileName = ltsnRowStagger.second,
         leftThumbEnabled = false,
         rightThumbEnabled = false,
         polishTopN = polishTopN
