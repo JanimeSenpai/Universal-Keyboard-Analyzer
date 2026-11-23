@@ -37,7 +37,7 @@ fun main(){
         rightThumbEnabled = true,
         polishTopN = polishTopN
     )
-
+/*
     parallelImprovement(
         runs = benchmarkRuns,
         keyboardname = ltsn.first,
@@ -94,7 +94,7 @@ fun main(){
         leftThumbEnabled = false,
         rightThumbEnabled = false,
         polishTopN = polishTopN
-    )
+    )*/
 }
 
 

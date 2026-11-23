@@ -129,9 +129,9 @@ fun calculateTotalEffort(result: LayoutAnalysisResult): Double {
                 (result.spaceSfs1Penalty * weightSpaceSfs1) +
                 rowPenalty
 
-    // Jutalmak összege
+    // Jutalmak összege (a thumb sor leütései is megkapják a home row pozitív súlyát)
     val rewards =
-        (result.homeRowPercentage * weightHomeRow) + //ezt mindig jól adjuk hozzá
+        ((result.homeRowPercentage + result.thumbRowPercentage) * weightHomeRow) +
                 (result.alternationPercentage * weightAlternation) +
                 (result.rollPercentage * weightRoll) +
                 (result.threerollPercentage * weightThreeRoll)

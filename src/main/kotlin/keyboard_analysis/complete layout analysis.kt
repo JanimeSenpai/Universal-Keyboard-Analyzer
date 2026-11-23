@@ -22,7 +22,8 @@ data class LayoutAnalysisResult(
     val pinkystretchPercentage: Double,
     val fullScissorPercentage: Double,
     val baseGravityEffort: Double, //láthatóvá tesszük a ritka karakterek mozgását a billentyűzet szélén
-    val halfScissorPercentage: Double
+    val halfScissorPercentage: Double,
+    val thumbRowPercentage: Double = if (rowPercentages.size > 1) rowPercentages.last() else 0.0
 )
 
 // 1. KONZOLOS INDÍTÓ FÜGGVÉNY (Egyszeri futás)
@@ -118,6 +119,12 @@ fun completeLayoutAnalysis(
     val rows = layoutData.getRows()
     val rowPercentages = rowUsageAnalysis(rows, layoutData.homeRowIndex, corpusData.letters,corpusData.spaceincludedletters, verbose, layoutData.name, corpusData.datasetName)
     val homeRowPercentage = if (layoutData.homeRowIndex in rowPercentages.indices) rowPercentages[layoutData.homeRowIndex] else 0.0
+    val thumbRowIndex = layoutData.numRows - 1
+    val thumbRowPercentage = if (thumbRowIndex in rowPercentages.indices && thumbRowIndex != layoutData.homeRowIndex) {
+        rowPercentages[thumbRowIndex]
+    } else {
+        0.0
+    }
 
 
     if (verbose) println("--------------------------------------------------")
@@ -322,7 +329,8 @@ val halfScissorPercentage = halfScissorAnalysis(
         pinkystretchPercentage = pinkyStretchPercentage,
         fullScissorPercentage = fullScissorPercentage,
         halfScissorPercentage = halfScissorPercentage,
-        baseGravityEffort = baseGravityEffort
+        baseGravityEffort = baseGravityEffort,
+        thumbRowPercentage = thumbRowPercentage
     )
 
     val totalEffort = calculateTotalEffort(preliminaryResult)
