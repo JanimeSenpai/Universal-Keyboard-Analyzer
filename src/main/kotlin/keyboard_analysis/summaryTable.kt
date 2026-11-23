@@ -40,13 +40,20 @@ fun generateSummaryCsv(datasetName: String) {
 
     // Itt definiáljuk a CSV oszlopait és azok sorrendjét
     val metricKeys = listOf(
+        "total_effort",
+        "char_reach_effort",
+        "base_gravity_effort",
         "left_hand", "right_hand",
         "row_home",
-        "sfb_total", "space_sfs1_total",
+        "sfb_total", "space_sfs1_total", "space_sfs1_penalty",
         "alternation_total",
         "2roll", "3roll",
         "redirect_total",
-        "pinky_off"
+        "pinky_off",
+        "lateral_stretch_total",
+        "pinky_stretch_total",
+        "full_scissor_total",
+        "half_scissor_total"
     )
 
     val summaryFile = File(baseDir, "összesítő_táblázat.csv")

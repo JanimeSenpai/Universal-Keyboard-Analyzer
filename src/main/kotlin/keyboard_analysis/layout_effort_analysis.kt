@@ -1,12 +1,15 @@
 package keyboard_analysis
 
+import java.io.File
+
 fun calculateWeightedReachEffortSum(
     charEffortMap: Map<Char, Double>,
     corpus: CorpusData,
-    verbose: Boolean = false
+    verbose: Boolean = false,
+    layoutName: String = "",
+    datasetName: String = corpus.datasetName
 ): Double {
-    // Ha a korpusz üres, ne adjunk vissza fals értéket
-    if (corpus.spaceincludedletters.isEmpty()) return 0.0
+    if (verbose) println("Karakter-elérési terhelés (Char Reach Effort) elemzése folyamatban...")
 
     var weightedEffortSum = 0.0
 
@@ -30,8 +33,53 @@ fun calculateWeightedReachEffortSum(
     }
 
     if (verbose) {
-        println("Átlagos súlyozott leütési terhelés (Char Reach Effort): ${String.format("%.4f", weightedEffortSum)}")
+        if (layoutName.isNotEmpty() && datasetName.isNotEmpty()) {
+            val resultDir = File("analysis_results/$datasetName/$layoutName")
+            resultDir.mkdirs()
+            val outputFile = File(resultDir, "char_reach_effort_analyzed.txt")
+
+            outputFile.bufferedWriter().use { writer ->
+                writer.write("Átlagos súlyozott leütési terhelés (Char Reach Effort): %.4f".format(weightedEffortSum))
+                writer.newLine()
+            }
+            saveRawMetric(datasetName, layoutName, "char_reach_effort", weightedEffortSum)
+            println("Sikeresen végrehajtva: ${outputFile.path} létrehozva. (Char Reach Effort: %.4f)".format(weightedEffortSum))
+        } else {
+            println("Átlagos súlyozott leütési terhelés (Char Reach Effort): ${String.format("%.4f", weightedEffortSum)}")
+        }
     }
 
     return weightedEffortSum
+}
+
+fun baseGravityEffortAnalysis(
+    charEffortMap: Map<Char, Double>,
+    verbose: Boolean = false,
+    layoutName: String = "",
+    datasetName: String = ""
+): Double {
+    if (verbose) println("Base Gravity Effort (Karakterek alap fizikai terhelése) elemzése folyamatban...")
+
+    val baseGravityEffort = charEffortMap.values.sum()
+
+    if (verbose) {
+        if (layoutName.isNotEmpty() && datasetName.isNotEmpty()) {
+            val resultDir = File("analysis_results/$datasetName/$layoutName")
+            resultDir.mkdirs()
+            val outputFile = File(resultDir, "base_gravity_effort_analyzed.txt")
+
+            outputFile.bufferedWriter().use { writer ->
+                writer.write("Teljes Base Gravity Effort (Karakterek fizikai effort összege): %.4f".format(baseGravityEffort))
+                writer.newLine()
+                writer.write("Kiosztáson szereplő karakterek száma: ${charEffortMap.size}")
+                writer.newLine()
+            }
+            saveRawMetric(datasetName, layoutName, "base_gravity_effort", baseGravityEffort)
+            println("Sikeresen végrehajtva: ${outputFile.path} létrehozva. (Base Gravity Effort: %.4f)".format(baseGravityEffort))
+        } else {
+            println("Base Gravity Effort: ${String.format("%.4f", baseGravityEffort)}")
+        }
+    }
+
+    return baseGravityEffort
 }

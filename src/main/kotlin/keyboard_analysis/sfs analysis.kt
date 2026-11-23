@@ -155,6 +155,7 @@ fun spaceSfs1Analysis(
             for (i in 0 until 10) { writer.write("${fingerNames[i]}: %.4f%%".format(fingerSfs1[i])); writer.newLine() }
         }
         saveRawMetric(datasetName, rawLayoutName, "space_sfs1_total", totalSfs1)
+        saveRawMetric(datasetName, rawLayoutName, "space_sfs1_penalty", totalSfsPenalty)
         println("Sikeresen végrehajtva: ${outputFile.path} létrehozva. (Teljes Space SFS-1 Penalty: %.4f)".format(totalSfsPenalty))
     }
 

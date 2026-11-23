@@ -99,16 +99,19 @@ fun completeLayoutAnalysis(
 ): LayoutAnalysisResult {
 
     if (verbose) {
+        // hogyha egy darab layoutot elemzünk, akkor ki fogjuk írni a végeredményt fájlba, és először töröljük a fájlban levő adatokat, hogy appendeljük az új információt
+        clearRawMetrics(corpusData.datasetName, layoutData.name)
         println("--------------------------------------------------")
         println("1. Effort (Fizikai Terhelés) számítása...")
     }
     val charEffortMap = layoutData.buildCharEffortMap()
-    val charReachEffort = calculateWeightedReachEffortSum(charEffortMap, corpusData, verbose)
-
-    if (verbose){
-        //hogyha egy darab layoutot elemzünk, akkor ki fogjuk írni a végeredményt fájlba, és először töröljük a fájlban levő adatokat, hogy appendeljük az új információt
-        clearRawMetrics(corpusData.datasetName, layoutData.name)
-    }
+    val charReachEffort = calculateWeightedReachEffortSum(
+        charEffortMap = charEffortMap,
+        corpus = corpusData,
+        verbose = verbose,
+        layoutName = layoutData.name,
+        datasetName = corpusData.datasetName
+    )
 
 
     if (verbose) println("--------------------------------------------------")
@@ -291,7 +294,13 @@ val halfScissorPercentage = halfScissorAnalysis(
     datasetName = corpusData.datasetName
 )
 
-    val baseGravityEffort = charEffortMap.values.sum()
+    if (verbose) println("--------------------------------------------------")
+    val baseGravityEffort = baseGravityEffortAnalysis(
+        charEffortMap = charEffortMap,
+        verbose = verbose,
+        layoutName = layoutData.name,
+        datasetName = corpusData.datasetName
+    )
 
 // Előzetes eredményobjektum összeállítása
     val preliminaryResult = LayoutAnalysisResult(
@@ -310,13 +319,28 @@ val halfScissorPercentage = halfScissorAnalysis(
         redirectPercentage = redirectPercentage,
         spaceSfs1Penalty = spaceSfs1Penalty,
         lateralStretchPercentage = lateralStretchPercentage,
-        pinkystretchPercentage =pinkyStretchPercentage ,
+        pinkystretchPercentage = pinkyStretchPercentage,
         fullScissorPercentage = fullScissorPercentage,
         halfScissorPercentage = halfScissorPercentage,
         baseGravityEffort = baseGravityEffort
     )
 
     val totalEffort = calculateTotalEffort(preliminaryResult)
+
+    if (verbose) {
+        println("--------------------------------------------------")
+        val resultDir = File("analysis_results/${corpusData.datasetName}/${layoutData.name}")
+        resultDir.mkdirs()
+        val outputFile = File(resultDir, "total_effort_analyzed.txt")
+
+        outputFile.bufferedWriter().use { writer ->
+            writer.write("Összesített Effort (Total Effort): %.4f".format(totalEffort))
+            writer.newLine()
+        }
+        saveRawMetric(corpusData.datasetName, layoutData.name, "total_effort", totalEffort)
+        println("Sikeresen végrehajtva: ${outputFile.path} létrehozva. (Total Effort: %.4f)".format(totalEffort))
+    }
+
     return preliminaryResult.copy(totalEffort = totalEffort)
 }
 
